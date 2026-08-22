@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { ordenesAPI } from '../services/api';
-import { Clock, Calendar, Check, X, ArrowLeft } from 'lucide-react';
+import { ordenesAPI, vehiculosAPI } from '../services/api';
+import { Clock, Calendar, Check, X, ArrowLeft, Car, User } from 'lucide-react';
 
 const oilTypes = [
     { id: 'mineral', name: 'Aceite Mineral', km: '5.000 KM', price: 48000, desc: 'Para motores tradicionales' },
@@ -13,14 +13,14 @@ const oilTypes = [
 const oilBrands = ['Mobil 1', 'Castrol', 'Liqui Moly', 'Shell Helix', 'Valvoline', 'Pennzoil'];
 
 const additionalServices = [
-    { id: 'filtroAceite', label: 'Cambio Filtro de Aceite', price: 18000, duration: 15, serviceId: 5 },
-    { id: 'filtroAire', label: 'Revisión Líquidos Refrigerantes', price: 22000, duration: 15, serviceId: 6 },
-    { id: 'fluidos', label: 'Líquido Frenos / Hidráulico', price: 25000, duration: 20, serviceId: 7 },
-    { id: 'frenosNeumaticos', label: 'Inspección Frenos y Neumáticos', price: 26000, duration: 25, serviceId: 11 },
+    { id: 'filtroAceite', label: 'Cambio Filtro de Aceite', price: 18000, duration: 15, serviceId: 4 },
+    { id: 'filtroAire', label: 'Revisión Líquidos Refrigerantes', price: 22000, duration: 15, serviceId: 5 },
+    { id: 'fluidos', label: 'Líquido Frenos / Hidráulico', price: 25000, duration: 20, serviceId: 6 },
+    { id: 'frenosNeumaticos', label: 'Inspección Frenos y Neumáticos', price: 26000, duration: 25, serviceId: 10 },
 ];
 
 export default function CotizarPage() {
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
     // Quote State
@@ -36,6 +36,10 @@ export default function CotizarPage() {
     const [fechaReserva, setFechaReserva] = useState(new Date().toISOString().slice(0, 10));
     const [horaReserva, setHoraReserva] = useState('10:00');
 
+    // User & Vehicle State
+    const [misVehiculos, setMisVehiculos] = useState([]);
+    const [selectedVehiculoId, setSelectedVehiculoId] = useState('nuevo');
+
     // Modal State
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [guestData, setGuestData] = useState({
@@ -50,6 +54,52 @@ export default function CotizarPage() {
     const [submitting, setSubmitting] = useState(false);
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [createdOrderId, setCreatedOrderId] = useState(null);
+
+    // Cargar vehículos del cliente autenticado
+    useEffect(() => {
+        if (isAuthenticated) {
+            vehiculosAPI?.getAll?.()
+                .then(res => {
+                    const vehiculos = res.data || res;
+                    if (Array.isArray(vehiculos) && vehiculos.length > 0) {
+                        setMisVehiculos(vehiculos);
+                        const primerVehiculo = vehiculos[0];
+                        setSelectedVehiculoId(primerVehiculo.id);
+                        setGuestData(prev => ({ ...prev, patente: primerVehiculo.patente || '' }));
+                    }
+                })
+                .catch(err => console.error('Error al cargar vehículos:', err));
+        }
+    }, [isAuthenticated]);
+
+    // Pre-poblar datos de usuario al autenticarse
+    useEffect(() => {
+        if (user) {
+            setGuestData(prev => ({
+                ...prev,
+                nombre: user.nombre || prev.nombre,
+                apellido: user.apellido || prev.apellido,
+                email: user.email || prev.email,
+                rut: user.rut || prev.rut,
+                telefono: user.telefono || prev.telefono,
+            }));
+        }
+    }, [user]);
+
+    // Manejar cambio de vehículo registrado
+    const handleSelectVehiculo = (e) => {
+        const val = e.target.value;
+        setSelectedVehiculoId(val);
+
+        if (val === 'nuevo') {
+            setGuestData(prev => ({ ...prev, patente: '' }));
+        } else {
+            const v = misVehiculos.find(item => item.id.toString() === val.toString());
+            if (v) {
+                setGuestData(prev => ({ ...prev, patente: v.patente || '' }));
+            }
+        }
+    };
 
     // Calculations
     const currentOilObj = oilTypes.find((o) => o.id === selectedOil) || oilTypes[1];
@@ -73,48 +123,60 @@ export default function CotizarPage() {
         if (user && (user.rol === 'administrador' || user.rol === 'mecanico')) {
             navigate('/ordenes/nueva');
         } else {
-            if (user) {
-                setGuestData((prev) => ({
-                    ...prev,
-                    nombre: user.nombre || prev.nombre,
-                    apellido: user.apellido || prev.apellido,
-                    email: user.email || prev.email,
-                    rut: user.rut || prev.rut,
-                    telefono: user.telefono || prev.telefono,
-                }));
-            }
             setShowBookingModal(true);
         }
     };
 
-    const handleGuestSubmit = async (e) => {
+    const handleBookingSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
 
         try {
+            // Construir IDs de servicios
             const selectedServiceIds = [
                 selectedOil === 'mineral' ? 1 : selectedOil === 'semisintetico' ? 2 : 3
             ];
-            if (extras.filtroAceite) selectedServiceIds.push(4);
-            if (extras.filtroAire) selectedServiceIds.push(5);
-            if (extras.fluidos) selectedServiceIds.push(6);
-            if (extras.frenosNeumaticos) selectedServiceIds.push(10);
-
-            const res = await ordenesAPI.createPublicReserva({
-                nombre: guestData.nombre,
-                apellido: guestData.apellido,
-                rut: guestData.rut,
-                telefono: guestData.telefono,
-                email: guestData.email,
-                patente: guestData.patente,
-                marca: 'Multimarca',
-                modelo: 'Estándar',
-                fecha_programada: `${fechaReserva} ${horaReserva}:00`,
-                servicio_ids: selectedServiceIds,
-                observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
+            additionalServices.forEach(extra => {
+                if (extras[extra.id]) selectedServiceIds.push(extra.serviceId);
             });
 
-            setCreatedOrderId(res.data?.data?.id || null);
+            const fechaProgramada = `${fechaReserva}T${horaReserva}:00`;
+
+            // Construir Payload según estado de autenticación
+            const payload = isAuthenticated
+                ? {
+                    fecha_programada: fechaProgramada,
+                    servicio_ids: selectedServiceIds,
+                    observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
+                    cliente_id: user?.cliente_id || user?.id,
+                    vehiculo_id: selectedVehiculoId !== 'nuevo' ? selectedVehiculoId : null,
+                    ...(selectedVehiculoId === 'nuevo' && {
+                        patente: guestData.patente,
+                        marca: 'Multimarca',
+                        modelo: 'Estándar',
+                    }),
+                }
+                : {
+                    nombre: guestData.nombre,
+                    apellido: guestData.apellido,
+                    rut: guestData.rut,
+                    telefono: guestData.telefono,
+                    email: guestData.email,
+                    patente: guestData.patente,
+                    marca: 'Multimarca',
+                    modelo: 'Estándar',
+                    fecha_programada: `${fechaReserva} ${horaReserva}:00`,
+                    servicio_ids: selectedServiceIds,
+                    observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
+                };
+
+            const apiCall = isAuthenticated
+                ? ordenesAPI.createReservaExpress(payload)
+                : ordenesAPI.createPublicReserva(payload);
+
+            const res = await apiCall;
+
+            setCreatedOrderId(res.data?.data?.id || res.data?.id || 'OK');
             setBookingSuccess(true);
         } catch (err) {
             alert('Error al registrar reserva: ' + (err.response?.data?.message || err.message));
@@ -311,7 +373,7 @@ export default function CotizarPage() {
                         <button
                             type="button"
                             onClick={() => setShowBookingModal(false)}
-                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                         >
                             <X size={16} />
                         </button>
@@ -320,7 +382,9 @@ export default function CotizarPage() {
                             <>
                                 <div>
                                     <h3 className="text-sm font-bold text-slate-900">Confirmar Reserva</h3>
-                                    <p className="text-xs text-slate-500">Ingresa tus datos de contacto y vehículo.</p>
+                                    <p className="text-xs text-slate-500">
+                                        {isAuthenticated ? 'Revisa tus datos y selecciona tu vehículo.' : 'Ingresa tus datos de contacto y vehículo.'}
+                                    </p>
                                 </div>
 
                                 <div className="bg-slate-50 p-3 rounded-lg text-xs space-y-1 text-slate-600 border border-slate-100">
@@ -334,62 +398,124 @@ export default function CotizarPage() {
                                     </div>
                                 </div>
 
-                                <form onSubmit={handleGuestSubmit} className="space-y-2.5 text-xs">
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input
-                                            type="text"
-                                            required
-                                            placeholder="Nombre"
-                                            value={guestData.nombre}
-                                            onChange={(e) => setGuestData((p) => ({ ...p, nombre: e.target.value }))}
-                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                        />
-                                        <input
-                                            type="text"
-                                            required
-                                            placeholder="Apellido"
-                                            value={guestData.apellido}
-                                            onChange={(e) => setGuestData((p) => ({ ...p, apellido: e.target.value }))}
-                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                        />
-                                    </div>
+                                <form onSubmit={handleBookingSubmit} className="space-y-3 text-xs">
+                                    {isAuthenticated ? (
+                                        /* VISTA PARA USUARIO AUTENTICADO */
+                                        <div className="space-y-3">
+                                            {/* Ficha compacta de usuario */}
+                                            <div className="flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                                                <div className="p-1.5 bg-slate-900 text-white rounded-md">
+                                                    <User size={14} />
+                                                </div>
+                                                <div className="overflow-hidden">
+                                                    <p className="font-semibold text-slate-900 truncate">
+                                                        {user?.nombre} {user?.apellido}
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                                                </div>
+                                            </div>
 
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <input
-                                            type="text"
-                                            required
-                                            placeholder="RUT"
-                                            value={guestData.rut}
-                                            onChange={(e) => setGuestData((p) => ({ ...p, rut: e.target.value }))}
-                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                        />
-                                        <input
-                                            type="tel"
-                                            required
-                                            placeholder="Teléfono"
-                                            value={guestData.telefono}
-                                            onChange={(e) => setGuestData((p) => ({ ...p, telefono: e.target.value }))}
-                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                        />
-                                    </div>
+                                            {/* Selección de Vehículo */}
+                                            {misVehiculos.length > 0 && (
+                                                <div>
+                                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                        Vehículo a atender
+                                                    </label>
+                                                    <select
+                                                        value={selectedVehiculoId}
+                                                        onChange={handleSelectVehiculo}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                    >
+                                                        {misVehiculos.map(v => (
+                                                            <option key={v.id} value={v.id}>
+                                                                {v.marca} {v.modelo} ({v.patente})
+                                                            </option>
+                                                        ))}
+                                                        <option value="nuevo">+ Ingresar otro vehículo</option>
+                                                    </select>
+                                                </div>
+                                            )}
 
-                                    <input
-                                        type="email"
-                                        required
-                                        placeholder="Correo Electrónico"
-                                        value={guestData.email}
-                                        onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
-                                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                    />
+                                            {/* Si selecciona 'nuevo' o no tiene vehículos previos */}
+                                            {(selectedVehiculoId === 'nuevo' || misVehiculos.length === 0) && (
+                                                <div>
+                                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                        Patente del Vehículo
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Patente (ej: AB1234)"
+                                                            value={guestData.patente}
+                                                            onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 pl-8 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
+                                                        />
+                                                        <Car size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* VISTA PARA INVITADO / NO AUTENTICADO */
+                                        <div className="space-y-2.5">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Nombre"
+                                                    value={guestData.nombre}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, nombre: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Apellido"
+                                                    value={guestData.apellido}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, apellido: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                            </div>
 
-                                    <input
-                                        type="text"
-                                        required
-                                        placeholder="Patente (ej: AB1234)"
-                                        value={guestData.patente}
-                                        onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
-                                    />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="RUT"
+                                                    value={guestData.rut}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, rut: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                                <input
+                                                    type="tel"
+                                                    required
+                                                    placeholder="Teléfono"
+                                                    value={guestData.telefono}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, telefono: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                            </div>
+
+                                            <input
+                                                type="email"
+                                                required
+                                                placeholder="Correo Electrónico"
+                                                value={guestData.email}
+                                                onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
+                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                            />
+
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="Patente (ej: AB1234)"
+                                                value={guestData.patente}
+                                                onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
+                                            />
+                                        </div>
+                                    )}
 
                                     <button
                                         type="submit"
@@ -408,15 +534,19 @@ export default function CotizarPage() {
                                 <div>
                                     <h3 className="text-sm font-bold text-slate-900">¡Reserva Registrada!</h3>
                                     <p className="text-xs text-slate-500 mt-1">
-                                        N° Orden: <strong>#{createdOrderId || '1'}</strong> • Patente: <strong>{guestData.patente}</strong>
+                                        N° Orden: <strong>#{createdOrderId}</strong> • Patente: <strong>{guestData.patente}</strong>
                                     </p>
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setShowBookingModal(false)}
+                                    onClick={() => {
+                                        setShowBookingModal(false);
+                                        setBookingSuccess(false);
+                                        if (isAuthenticated) navigate('/dashboard');
+                                    }}
                                     className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer"
                                 >
-                                    Cerrar
+                                    {isAuthenticated ? 'Ir a mi Panel' : 'Cerrar'}
                                 </button>
                             </div>
                         )}
