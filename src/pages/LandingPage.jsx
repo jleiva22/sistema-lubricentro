@@ -73,9 +73,19 @@ export default function LandingPage() {
   };
 
   const handleStartBooking = () => {
-    if (user) {
+    if (user && (user.rol === 'administrador' || user.rol === 'mecanico')) {
       navigate('/ordenes/nueva');
     } else {
+      if (user) {
+        setGuestData((prev) => ({
+          ...prev,
+          nombre: user.nombre || prev.nombre,
+          apellido: user.apellido || prev.apellido,
+          email: user.email || prev.email,
+          rut: user.rut || prev.rut,
+          telefono: user.telefono || prev.telefono,
+        }));
+      }
       setShowBookingModal(true);
     }
   };
@@ -86,12 +96,12 @@ export default function LandingPage() {
 
     try {
       const selectedServiceIds = [
-        selectedOil === 'mineral' ? 2 : selectedOil === 'semisintetico' ? 3 : 4
+        selectedOil === 'mineral' ? 1 : selectedOil === 'semisintetico' ? 2 : 3
       ];
-      if (extras.filtroAceite) selectedServiceIds.push(5);
-      if (extras.filtroAire) selectedServiceIds.push(6);
-      if (extras.fluidos) selectedServiceIds.push(7);
-      if (extras.frenosNeumaticos) selectedServiceIds.push(11);
+      if (extras.filtroAceite) selectedServiceIds.push(4);
+      if (extras.filtroAire) selectedServiceIds.push(5);
+      if (extras.fluidos) selectedServiceIds.push(6);
+      if (extras.frenosNeumaticos) selectedServiceIds.push(10);
 
       const res = await ordenesAPI.createPublicReserva({
         nombre: guestData.nombre,

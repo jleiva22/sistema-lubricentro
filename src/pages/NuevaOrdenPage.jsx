@@ -82,22 +82,56 @@ export default function NuevaOrdenPage() {
     });
   };
 
-  const handleSubmit = (event) => {
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    const payload = {
-      cliente,
-      vehiculo,
-      fechaIngreso: form.fechaIngreso,
-      diagnostico: form.diagnostico,
-      servicios: serviciosSeleccionados,
-      subtotal,
-      iva,
-      total,
-      incluirIva: form.incluirIva,
-    };
+    if (!form.vehiculoId) {
+      alert('Debes seleccionar un vehículo');
+      return;
+    }
+    if (serviciosSeleccionados.length === 0) {
+      alert('Debes seleccionar al menos un servicio del catálogo');
+      return;
+    }
 
-    navigate('/boletas/preview', { state: payload });
+    setSubmittingOrder(true);
+    try {
+      const payload = {
+        vehiculo_id: Number(form.vehiculoId),
+        kilometraje_ingreso: Number(vehiculo?.kilometraje_actual || 0),
+        fecha_programada: form.fechaIngreso,
+        observaciones_fallas: form.diagnostico,
+        detalles: serviciosSeleccionados.map((s) => ({
+          servicio_id: s.id,
+          cantidad: 1,
+          precio_unitario: Number(s.precio_unitario || s.precio_base || 0),
+        })),
+      };
+
+      const res = await ordenesAPI.create(payload);
+      const createdOrder = res.data?.data || res.data;
+
+      const previewState = {
+        cliente,
+        vehiculo,
+        fechaIngreso: form.fechaIngreso,
+        diagnostico: form.diagnostico,
+        servicios: serviciosSeleccionados,
+        subtotal,
+        iva,
+        total,
+        incluirIva: form.incluirIva,
+        ordenId: createdOrder?.id,
+      };
+
+      navigate('/boletas/preview', { state: previewState });
+    } catch (err) {
+      alert('Error al guardar orden en la base de datos: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSubmittingOrder(false);
+    }
   };
 
   return (
@@ -283,10 +317,11 @@ export default function NuevaOrdenPage() {
 
             <button
               type="submit"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-bold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 text-sm cursor-pointer"
+              disabled={submittingOrder}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-bold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 text-sm cursor-pointer disabled:opacity-60"
             >
               <BadgeDollarSign size={18} />
-              Pagar e imprimir boleta
+              {submittingOrder ? 'Guardando en BD...' : 'Pagar e imprimir boleta'}
             </button>
           </div>
         </aside>
