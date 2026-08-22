@@ -33,6 +33,12 @@ export default function AuthProvider({ children }) {
     return data.usuario;
   };
 
+  const register = async (userData) => {
+    const { data } = await authAPI.register(userData);
+    setUser(data.usuario);
+    return data.usuario;
+  };
+
   const logout = async () => {
     try {
       await authAPI.logout();
@@ -43,7 +49,7 @@ export default function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

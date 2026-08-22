@@ -2,16 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardList, Plus, Search } from 'lucide-react';
 import { ordenesAPI } from '../services/api';
-import { ordenesData as fallbackOrdenes } from '../data/mockData';
 
 const estadoStyles = {
   recepcionado: 'bg-sky-50 text-sky-700 border border-sky-200',
   en_proceso: 'bg-amber-50 text-amber-700 border border-amber-200',
   completado: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
   pagado: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  'En revisión': 'bg-amber-50 text-amber-700 border border-amber-200',
-  Pendiente: 'bg-sky-50 text-sky-700 border border-sky-200',
-  Pagado: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
 };
 
 export default function OrdersPage() {
@@ -25,14 +21,14 @@ export default function OrdersPage() {
       try {
         const { data } = await ordenesAPI.getAll();
         if (isMounted) {
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             setOrdenes(data);
           } else {
-            setOrdenes(fallbackOrdenes);
+            setOrdenes([]);
           }
         }
       } catch (err) {
-        if (isMounted) setOrdenes(fallbackOrdenes);
+        if (isMounted) setOrdenes([]);
       } finally {
         if (isMounted) setLoading(false);
       }

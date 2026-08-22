@@ -1,32 +1,72 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, BadgeDollarSign } from 'lucide-react';
-import { clientesData, vehiculosData, catalogoData } from '../data/mockData';
+import { Plus, Trash2, ArrowLeft, BadgeDollarSign, Loader2 } from 'lucide-react';
+import { clientesAPI, vehiculosAPI, catalogoAPI, ordenesAPI } from '../services/api';
 
 const today = new Date().toISOString().slice(0, 10);
 
-const initialForm = {
-  clienteId: clientesData[0]?.id ?? 1,
-  vehiculoId: vehiculosData[0]?.id ?? 1,
-  fechaIngreso: today,
-  diagnostico: 'Cambio de aceite y revisión preventiva general.',
-  incluirIva: true,
-  selectedServiceIds: [1, 4],
-};
-
 export default function NuevaOrdenPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState(initialForm);
+  const [clientes, setClientes] = useState([]);
+  const [vehiculos, setVehiculos] = useState([]);
+  const [catalogo, setCatalogo] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const cliente = clientesData.find((item) => item.id === Number(form.clienteId)) ?? clientesData[0];
-  const vehiculo = vehiculosData.find((item) => item.id === Number(form.vehiculoId)) ?? vehiculosData[0];
+  const [form, setForm] = useState({
+    clienteId: '',
+    vehiculoId: '',
+    fechaIngreso: today,
+    diagnostico: 'Cambio de aceite y revisión preventiva general.',
+    incluirIva: true,
+    selectedServiceIds: [],
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAllData = async () => {
+      try {
+        const [resClientes, resVehiculos, resCatalogo] = await Promise.all([
+          clientesAPI.getAll().catch(() => ({ data: [] })),
+          vehiculosAPI.getAll().catch(() => ({ data: [] })),
+          catalogoAPI.getAll().catch(() => ({ data: [] })),
+        ]);
+
+        if (isMounted) {
+          const cliList = resClientes.data || [];
+          const vehList = resVehiculos.data || [];
+          const catList = resCatalogo.data || [];
+
+          setClientes(cliList);
+          setVehiculos(vehList);
+          setCatalogo(catList);
+
+          setForm((prev) => ({
+            ...prev,
+            clienteId: cliList[0]?.id || '',
+            vehiculoId: vehList[0]?.id || '',
+            selectedServiceIds: catList[0]?.id ? [catList[0].id] : [],
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching dynamic order form data:', err);
+      } finally {
+        if (isMounted) setLoadingData(false);
+      }
+    };
+
+    fetchAllData();
+    return () => { isMounted = false; };
+  }, []);
+
+  const cliente = clientes.find((item) => String(item.id) === String(form.clienteId)) || clientes[0];
+  const vehiculo = vehiculos.find((item) => String(item.id) === String(form.vehiculoId)) || vehiculos[0];
 
   const serviciosSeleccionados = useMemo(
-    () => catalogoData.filter((servicio) => form.selectedServiceIds.includes(servicio.id)),
-    [form.selectedServiceIds]
+    () => catalogo.filter((servicio) => form.selectedServiceIds.includes(servicio.id)),
+    [catalogo, form.selectedServiceIds]
   );
 
-  const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio), 0);
+  const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio_base || 0), 0);
   const iva = form.incluirIva ? subtotal * 0.19 : 0;
   const total = subtotal + iva;
 
@@ -90,9 +130,13 @@ export default function NuevaOrdenPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, clienteId: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
                 >
-                  {clientesData.map((item) => (
-                    <option key={item.id} value={item.id}>{item.nombre} {item.apellido}</option>
-                  ))}
+                  {clientes.length === 0 ? (
+                    <option value="">Sin clientes en la BD</option>
+                  ) : (
+                    clientes.map((item) => (
+                      <option key={item.id} value={item.id}>{item.nombre} {item.apellido || ''}</option>
+                    ))
+                  )}
                 </select>
               </label>
 
@@ -103,9 +147,13 @@ export default function NuevaOrdenPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, vehiculoId: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
                 >
-                  {vehiculosData.map((item) => (
-                    <option key={item.id} value={item.id}>{item.marca} {item.modelo} - {item.patente}</option>
-                  ))}
+                  {vehiculos.length === 0 ? (
+                    <option value="">Sin vehículos en la BD</option>
+                  ) : (
+                    vehiculos.map((item) => (
+                      <option key={item.id} value={item.id}>{item.marca} {item.modelo} - {item.patente}</option>
+                    ))
+                  )}
                 </select>
               </label>
 
@@ -141,33 +189,37 @@ export default function NuevaOrdenPage() {
             </label>
 
             <div className="space-y-3">
-              {catalogoData.map((servicio) => {
-                const checked = form.selectedServiceIds.includes(servicio.id);
+              {catalogo.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">No hay servicios en el catálogo.</p>
+              ) : (
+                catalogo.map((servicio) => {
+                  const checked = form.selectedServiceIds.includes(servicio.id);
 
-                return (
-                  <button
-                    key={servicio.id}
-                    type="button"
-                    onClick={() => toggleServicio(servicio.id)}
-                    className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition ${
-                      checked
-                        ? 'border-brand-500 bg-brand-50/80 text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-bold text-sm text-slate-900">{servicio.nombre}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">{servicio.descripcion}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-brand-600 text-sm">${servicio.precio.toLocaleString('es-CL')}</span>
-                      <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
-                        {checked ? '✓' : ''}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={servicio.id}
+                      type="button"
+                      onClick={() => toggleServicio(servicio.id)}
+                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition ${
+                        checked
+                          ? 'border-brand-500 bg-brand-50/80 text-slate-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-sm text-slate-900">{servicio.nombre}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{servicio.descripcion}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-brand-600 text-sm">${Number(servicio.precio_base || 0).toLocaleString('es-CL')}</span>
+                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {checked ? '✓' : ''}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

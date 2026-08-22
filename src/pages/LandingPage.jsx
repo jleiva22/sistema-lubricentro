@@ -43,10 +43,11 @@ export default function LandingPage() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [guestData, setGuestData] = useState({
     nombre: '',
-    email: '',
+    apellido: '',
+    rut: '',
     telefono: '',
+    email: '',
     patente: '',
-    marcaModelo: '',
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -94,10 +95,12 @@ export default function LandingPage() {
 
       const res = await ordenesAPI.createPublicReserva({
         nombre: guestData.nombre,
-        email: guestData.email,
+        apellido: guestData.apellido,
+        rut: guestData.rut,
         telefono: guestData.telefono,
+        email: guestData.email,
         patente: guestData.patente,
-        marca: guestData.marcaModelo || 'Multimarca',
+        marca: 'Multimarca',
         modelo: 'Estándar',
         fecha_programada: `${fechaReserva} ${horaReserva}:00`,
         servicio_ids: selectedServiceIds,
@@ -489,27 +492,40 @@ export default function LandingPage() {
                 </div>
 
                 <form onSubmit={handleGuestSubmit} className="space-y-3 text-xs">
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Nombre Completo</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ej: Juan Pérez"
-                      value={guestData.nombre}
-                      onChange={(e) => setGuestData((p) => ({ ...p, nombre: e.target.value }))}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Nombre</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Juan"
+                        value={guestData.nombre}
+                        onChange={(e) => setGuestData((p) => ({ ...p, nombre: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Apellido</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: Pérez"
+                        value={guestData.apellido}
+                        onChange={(e) => setGuestData((p) => ({ ...p, apellido: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Correo Electrónico</label>
+                      <label className="block text-slate-700 font-semibold mb-1">RUT</label>
                       <input
-                        type="email"
+                        type="text"
                         required
-                        placeholder="juan@correo.cl"
-                        value={guestData.email}
-                        onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
+                        placeholder="12.345.678-9"
+                        value={guestData.rut}
+                        onChange={(e) => setGuestData((p) => ({ ...p, rut: e.target.value }))}
                         className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600"
                       />
                     </div>
@@ -526,16 +542,29 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Patente Vehículo</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="AB-1234"
-                      value={guestData.patente}
-                      onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600 uppercase"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Correo Electrónico</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="juan@correo.cl"
+                        value={guestData.email}
+                        onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">Patente Vehículo</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="AB-1234"
+                        value={guestData.patente}
+                        onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-brand-600 uppercase"
+                      />
+                    </div>
                   </div>
 
                   <button

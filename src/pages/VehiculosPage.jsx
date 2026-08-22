@@ -1,8 +1,30 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Car } from 'lucide-react';
-import { vehiculosData } from '../data/mockData';
+import { Car, Loader2 } from 'lucide-react';
+import { vehiculosAPI } from '../services/api';
 
 export default function VehiculosPage() {
+  const [vehiculos, setVehiculos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchVehiculos = async () => {
+      try {
+        const { data } = await vehiculosAPI.getAll();
+        if (isMounted && Array.isArray(data)) {
+          setVehiculos(data);
+        }
+      } catch (err) {
+        console.error('Error cargando vehículos:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchVehiculos();
+    return () => { isMounted = false; };
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -15,32 +37,49 @@ export default function VehiculosPage() {
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <table className="min-w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
-              <th className="px-4 py-3 font-semibold">Patente</th>
-              <th className="px-4 py-3 font-semibold">Marca</th>
-              <th className="px-4 py-3 font-semibold">Modelo</th>
-              <th className="px-4 py-3 font-semibold">Año</th>
-              <th className="px-4 py-3 font-semibold">Motor</th>
-              <th className="px-4 py-3 font-semibold">Kilometraje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vehiculosData.map((vehiculo) => (
-              <tr key={vehiculo.id} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50">
-                <td className="px-4 py-4 font-bold text-brand-600 font-mono">{vehiculo.patente}</td>
-                <td className="px-4 py-4 font-medium text-slate-900">{vehiculo.marca}</td>
-                <td className="px-4 py-4">{vehiculo.modelo}</td>
-                <td className="px-4 py-4">{vehiculo.anio}</td>
-                <td className="px-4 py-4">{vehiculo.tipoMotor}</td>
-                <td className="px-4 py-4 font-bold text-slate-900">{vehiculo.kilometraje.toLocaleString('es-CL')} km</td>
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
+          <Loader2 size={22} className="animate-spin text-brand-600" />
+          Cargando vehículos de la base de datos...
+        </div>
+      ) : vehiculos.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">
+          <Car size={36} className="mx-auto text-slate-300" />
+          <h3 className="text-base font-bold text-slate-800">No hay vehículos registrados</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Los vehículos asociados a clientes u órdenes ingresadas aparecerán listados aquí.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                <th className="px-4 py-3 font-semibold">Patente</th>
+                <th className="px-4 py-3 font-semibold">Marca</th>
+                <th className="px-4 py-3 font-semibold">Modelo</th>
+                <th className="px-4 py-3 font-semibold">Año</th>
+                <th className="px-4 py-3 font-semibold">Motor</th>
+                <th className="px-4 py-3 font-semibold">Kilometraje</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {vehiculos.map((vehiculo) => (
+                <tr key={vehiculo.id} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50">
+                  <td className="px-4 py-4 font-bold text-brand-600 font-mono">{vehiculo.patente}</td>
+                  <td className="px-4 py-4 font-medium text-slate-900">{vehiculo.marca}</td>
+                  <td className="px-4 py-4">{vehiculo.modelo}</td>
+                  <td className="px-4 py-4">{vehiculo.anio || '-'}</td>
+                  <td className="px-4 py-4">{vehiculo.tipo_motor || 'Gasolina'}</td>
+                  <td className="px-4 py-4 font-bold text-slate-900">
+                    {Number(vehiculo.kilometraje_actual || 0).toLocaleString('es-CL')} km
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
         <div className="mb-4 flex items-center gap-3">
@@ -71,3 +110,4 @@ export default function VehiculosPage() {
     </div>
   );
 }
+

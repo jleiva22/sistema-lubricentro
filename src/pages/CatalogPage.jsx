@@ -1,8 +1,30 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Clock3 } from 'lucide-react';
-import { catalogoData } from '../data/mockData';
+import { Package, Clock3, Loader2 } from 'lucide-react';
+import { catalogoAPI } from '../services/api';
 
 export default function CatalogPage() {
+  const [catalogo, setCatalogo] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCatalogo = async () => {
+      try {
+        const { data } = await catalogoAPI.getAll();
+        if (isMounted && Array.isArray(data)) {
+          setCatalogo(data);
+        }
+      } catch (err) {
+        console.error('Error cargando catálogo:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchCatalogo();
+    return () => { isMounted = false; };
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -15,37 +37,50 @@ export default function CatalogPage() {
         </Link>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        {catalogoData.map((servicio) => (
-          <div key={servicio.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 border border-brand-200">
-                  <Package size={22} />
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
+          <Loader2 size={22} className="animate-spin text-brand-600" />
+          Cargando catálogo de la base de datos...
+        </div>
+      ) : catalogo.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">
+          <Package size={36} className="mx-auto text-slate-300" />
+          <h3 className="text-base font-bold text-slate-800">No hay productos ni servicios registrados</h3>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {catalogo.map((servicio) => (
+            <div key={servicio.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 border border-brand-200">
+                    <Package size={22} />
+                  </div>
+                  <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 text-xs font-semibold uppercase">
+                    {servicio.categoria || 'Servicio'}
+                  </span>
                 </div>
-                <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 text-xs font-semibold">
-                  {servicio.categoria}
-                </span>
+
+                <h2 className="text-xl font-bold text-slate-900">{servicio.nombre}</h2>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600">{servicio.descripcion}</p>
               </div>
 
-              <h2 className="text-xl font-bold text-slate-900">{servicio.nombre}</h2>
-              <p className="mt-2 text-xs leading-relaxed text-slate-600">{servicio.descripcion}</p>
-            </div>
+              <div>
+                <div className="mt-5 flex items-center justify-between text-xs text-slate-700 pt-3 border-t border-slate-100">
+                  <span className="inline-flex items-center gap-2 font-medium">
+                    <Clock3 size={16} className="text-brand-600" />
+                    {servicio.duracion_estimada || 30} min
+                  </span>
+                  <span className="text-lg font-black text-brand-600">${Number(servicio.precio_base || 0).toLocaleString('es-CL')}</span>
+                </div>
 
-            <div>
-              <div className="mt-5 flex items-center justify-between text-xs text-slate-700 pt-3 border-t border-slate-100">
-                <span className="inline-flex items-center gap-2 font-medium">
-                  <Clock3 size={16} className="text-brand-600" />
-                  {servicio.tiempoEstimado}
-                </span>
-                <span className="text-lg font-black text-brand-600">${servicio.precio.toLocaleString('es-CL')}</span>
+                <div className="mt-2 text-[11px] font-semibold text-slate-400">Marca: {servicio.marca || 'Multimarca'}</div>
               </div>
-
-              <div className="mt-2 text-[11px] font-semibold text-slate-400">Marca: {servicio.marca}</div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
