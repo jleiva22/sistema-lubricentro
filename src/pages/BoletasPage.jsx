@@ -45,7 +45,7 @@ export default function BoletasPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
           <Loader2 size={22} className="animate-spin text-brand-600" />
-          Cargando boletas de la base de datos...
+          Cargando boletas...
         </div>
       ) : boletas.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">
@@ -70,8 +70,8 @@ export default function BoletasPage() {
             </thead>
             <tbody>
               {boletas.map((boleta) => {
-                const clienteStr = boleta.vehiculo?.cliente 
-                  ? `${boleta.vehiculo.cliente.nombre} ${boleta.vehiculo.cliente.apellido || ''}` 
+                const clienteStr = boleta.vehiculo?.cliente
+                  ? `${boleta.vehiculo.cliente.nombre} ${boleta.vehiculo.cliente.apellido || ''}`
                   : (boleta.cliente || 'Cliente General');
                 const fechaStr = boleta.fecha_ingreso ? new Date(boleta.fecha_ingreso).toLocaleDateString('es-CL') : 'Reciente';
                 const pagado = boleta.pagado || boleta.estado === 'pagado' || boleta.estado === 'completado';

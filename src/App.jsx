@@ -5,6 +5,7 @@ import DashboardLayout from './components/DashboardLayout';
 
 // Pages
 import LandingPage from './pages/LandingPage';
+import CotizarPage from './pages/CotizarPage'; // <-- IMPORT QUE FALTABA
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import OrdersPage from './pages/OrdersPage';
@@ -26,6 +27,7 @@ export default function App() {
         <Routes>
           {/* Rutas Públicas */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/cotizar" element={<CotizarPage />} />
           <Route path="/login" element={<LoginPage />} />
 
           {/* Rutas Protegidas General */}

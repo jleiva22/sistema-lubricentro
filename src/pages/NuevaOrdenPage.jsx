@@ -128,7 +128,7 @@ export default function NuevaOrdenPage() {
 
       navigate('/boletas/preview', { state: previewState });
     } catch (err) {
-      alert('Error al guardar orden en la base de datos: ' + (err.response?.data?.message || err.message));
+      alert('Error al guardar orden: ' + (err.response?.data?.message || err.message));
     } finally {
       setSubmittingOrder(false);
     }
@@ -234,11 +234,10 @@ export default function NuevaOrdenPage() {
                       key={servicio.id}
                       type="button"
                       onClick={() => toggleServicio(servicio.id)}
-                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition ${
-                        checked
+                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition ${checked
                           ? 'border-brand-500 bg-brand-50/80 text-slate-900'
                           : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                      }`}
+                        }`}
                     >
                       <div>
                         <div className="font-bold text-sm text-slate-900">{servicio.nombre}</div>

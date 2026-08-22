@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/useAuth';
 import { Link } from 'react-router-dom';
-import { 
-  Users, Car, ClipboardList, TrendingUp, Wrench, 
+import {
+  Users, Car, ClipboardList, TrendingUp, Wrench,
   CheckCircle2, Clock, Calendar, Droplet, ShieldCheck, Plus, ChevronRight, Loader2
 } from 'lucide-react';
 import { ordenesAPI, clientesAPI, vehiculosAPI } from '../services/api';
@@ -129,7 +129,7 @@ function AdminDashboard({ user }) {
           {loading ? (
             <div className="flex items-center justify-center py-12 text-slate-400 gap-2 text-sm">
               <Loader2 size={20} className="animate-spin text-brand-600" />
-              Cargando órdenes de la base de datos...
+              Cargando órdenes...
             </div>
           ) : ordenes.length === 0 ? (
             <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -155,11 +155,10 @@ function AdminDashboard({ user }) {
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-emerald-600">${totalNum.toLocaleString('es-CL')}</p>
-                      <span className={`inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold mt-1 border capitalize ${
-                        orden.estado === 'pagado' || orden.estado === 'completado'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
+                      <span className={`inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold mt-1 border capitalize ${orden.estado === 'pagado' || orden.estado === 'completado'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
                         {orden.estado?.replace('_', ' ') || 'recepcionado'}
                       </span>
                     </div>
@@ -190,7 +189,6 @@ function AdminDashboard({ user }) {
               </span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3.5 border border-slate-200">
-              <span className="text-slate-600">Base de Datos</span>
               <span className="font-bold text-emerald-600">Conectado (Producción)</span>
             </div>
           </div>
@@ -277,7 +275,7 @@ function MecanicoDashboard({ user }) {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
           <Loader2 size={22} className="animate-spin text-amber-600" />
-          Cargando bahías de trabajo desde la base de datos...
+          Cargando bahías de trabajo...
         </div>
       ) : tallerOrders.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
@@ -296,18 +294,17 @@ function MecanicoDashboard({ user }) {
                   <span className="text-xs font-mono font-bold bg-brand-50 text-brand-700 px-2.5 py-1 rounded-lg border border-brand-200">
                     {ord.patente}
                   </span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border capitalize ${
-                    ord.estado === 'en_proceso' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold border capitalize ${ord.estado === 'en_proceso' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                     ord.estado === 'completado' || ord.estado === 'pagado' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    'bg-sky-50 text-sky-700 border-sky-200'
-                  }`}>
+                      'bg-sky-50 text-sky-700 border-sky-200'
+                    }`}>
                     {ord.estado?.replace('_', ' ')}
                   </span>
                 </div>
 
                 <h3 className="text-lg font-bold text-slate-900">{ord.vehiculo}</h3>
                 <p className="text-xs text-slate-500">Cliente: {ord.cliente}</p>
-                
+
                 <div className="my-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700">
                   <p className="font-semibold text-brand-700 mb-1">Trabajo Solicitado:</p>
                   <p>{ord.servicio}</p>
@@ -317,45 +314,41 @@ function MecanicoDashboard({ user }) {
                 <div className="space-y-2 mt-4">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Checklist Preventivo:</p>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => toggleCheck(ord.id, 'aceite')}
-                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${
-                        ord.checkpoints.aceite ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${ord.checkpoints.aceite ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
                     >
                       <CheckCircle2 size={14} className={ord.checkpoints.aceite ? 'text-emerald-600' : 'text-slate-400'} />
                       Cambio Aceite
                     </button>
 
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => toggleCheck(ord.id, 'filtro')}
-                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${
-                        ord.checkpoints.filtro ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${ord.checkpoints.filtro ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
                     >
                       <CheckCircle2 size={14} className={ord.checkpoints.filtro ? 'text-emerald-600' : 'text-slate-400'} />
                       Filtro Aceite
                     </button>
 
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => toggleCheck(ord.id, 'fluidos')}
-                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${
-                        ord.checkpoints.fluidos ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${ord.checkpoints.fluidos ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
                     >
                       <CheckCircle2 size={14} className={ord.checkpoints.fluidos ? 'text-emerald-600' : 'text-slate-400'} />
                       Fluidos
                     </button>
 
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => toggleCheck(ord.id, 'frenos')}
-                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${
-                        ord.checkpoints.frenos ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
-                      }`}
+                      className={`flex items-center gap-2 p-2 rounded-lg border text-left transition cursor-pointer ${ord.checkpoints.frenos ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-slate-50 border-slate-200 text-slate-500'
+                        }`}
                     >
                       <CheckCircle2 size={14} className={ord.checkpoints.frenos ? 'text-emerald-600' : 'text-slate-400'} />
                       Pastillas/Luces
@@ -456,7 +449,7 @@ function ClienteDashboard({ user }) {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
           <Loader2 size={22} className="animate-spin text-emerald-600" />
-          Cargando tu información desde la base de datos...
+          Cargando tu información...
         </div>
       ) : (
         <>

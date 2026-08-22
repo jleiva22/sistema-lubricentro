@@ -49,7 +49,7 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] font-bold text-brand-600">Operación (BD MySQL)</p>
+          <p className="text-xs uppercase tracking-[0.2em] font-bold text-brand-600">Operación</p>
           <h1 className="text-3xl font-bold text-slate-900">Órdenes de trabajo</h1>
         </div>
 
@@ -75,7 +75,7 @@ export default function OrdersPage() {
         </div>
 
         {loading ? (
-          <div className="py-8 text-center text-xs text-slate-500">Cargando órdenes desde MySQL...</div>
+          <div className="py-8 text-center text-xs text-slate-500">Cargando órdenes...</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -137,7 +137,7 @@ export default function OrdersPage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
           <div className="mb-3 flex items-center justify-between text-slate-500">
-            <span className="text-sm font-medium">Ingresos BD (Suma Total)</span>
+            <span className="text-sm font-medium">Ingresos (Suma Total)</span>
             <ClipboardList size={18} className="text-amber-600" />
           </div>
           <div className="text-3xl font-bold text-slate-900">

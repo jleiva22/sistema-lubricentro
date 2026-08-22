@@ -40,7 +40,7 @@ export default function ClientesPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
           <Loader2 size={22} className="animate-spin text-brand-600" />
-          Cargando clientes de la base de datos...
+          Cargando clientes...
         </div>
       ) : clientes.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">

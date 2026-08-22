@@ -36,7 +36,7 @@ export default function UsuariosPage() {
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400 gap-2 text-sm bg-white rounded-2xl border border-slate-200">
           <Loader2 size={22} className="animate-spin text-brand-600" />
-          Cargando usuarios de la base de datos...
+          Cargando usuarios...
         </div>
       ) : usuarios.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 space-y-3">
