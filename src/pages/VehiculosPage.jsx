@@ -11,9 +11,15 @@ export default function VehiculosPage() {
     let isMounted = true;
     const fetchVehiculos = async () => {
       try {
-        const { data } = await vehiculosAPI.getAll();
-        if (isMounted && Array.isArray(data)) {
-          setVehiculos(data);
+        const response = await vehiculosAPI.getAll();
+
+        // Extrae el arreglo considerando respuesta envuelta (res.data.data) o directa (res.data)
+        const listaVehiculos = Array.isArray(response.data)
+          ? response.data
+          : response.data?.data || [];
+
+        if (isMounted) {
+          setVehiculos(listaVehiculos);
         }
       } catch (err) {
         console.error('Error cargando vehículos:', err);
@@ -21,6 +27,7 @@ export default function VehiculosPage() {
         if (isMounted) setLoading(false);
       }
     };
+
     fetchVehiculos();
     return () => { isMounted = false; };
   }, []);
