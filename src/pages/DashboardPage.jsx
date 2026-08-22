@@ -438,7 +438,7 @@ function ClienteDashboard({ user }) {
         </div>
 
         <Link
-          to="/"
+          to="/cotizar"
           className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-md shadow-brand-600/20"
         >
           <Calendar size={18} />
