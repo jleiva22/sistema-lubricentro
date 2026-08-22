@@ -272,7 +272,6 @@ export default function CotizarPage() {
                         />
                     </div>
                 </div>
-
                 <button
                     type="submit"
                     disabled={submitting}
