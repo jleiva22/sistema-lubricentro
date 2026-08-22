@@ -25,45 +25,48 @@ export default function CotizarPage() {
         hora: ''
     });
 
-    // Si está autenticado, cargamos sus vehículos registrados
-    useEffect(() => {
-        if (isAuthenticated) {
-            vehiculosAPI.getAll()
-                .then(res => {
-                    if (Array.isArray(res.data) && res.data.length > 0) {
-                        setMisVehiculos(res.data);
-                        // Seleccionar el primer vehículo por defecto
-                        const primerVehiculo = res.data[0];
-                        setSelectedVehiculoId(primerVehiculo.id);
-                        setFormData(prev => ({
-                            ...prev,
-                            patente: primerVehiculo.patente,
-                            marca: primerVehiculo.marca,
-                            modelo: primerVehiculo.modelo,
-                        }));
-                    }
-                })
-                .catch(err => console.error(err));
-        }
-    }, [isAuthenticated]);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        setError(null);
 
-    // Al cambiar la selección del vehículo registrado
-    const handleSelectVehiculo = (e) => {
-        const vehiculoId = e.target.value;
-        setSelectedVehiculoId(vehiculoId);
+        // Construcción dinámica del payload
+        const payload = {
+            servicio_id: formData.servicioId,
+            fecha_reserva: formData.fecha,
+            hora_reserva: formData.hora,
+            observaciones: formData.observaciones || '',
 
-        if (vehiculoId === 'nuevo') {
-            setFormData(prev => ({ ...prev, patente: '', marca: '', modelo: '' }));
-        } else {
-            const v = misVehiculos.find(item => item.id.toString() === vehiculoId.toString());
-            if (v) {
-                setFormData(prev => ({
-                    ...prev,
-                    patente: v.patente,
-                    marca: v.marca,
-                    modelo: v.modelo,
-                }));
-            }
+            ...(isAuthenticated
+                ? {
+                    // Datos para usuario autenticado
+                    cliente_id: user?.cliente_id || user?.id,
+                    vehiculo_id: selectedVehiculoId !== 'nuevo' ? selectedVehiculoId : null,
+                    ...(selectedVehiculoId === 'nuevo' && {
+                        patente: formData.patente,
+                        marca: formData.marca,
+                        modelo: formData.modelo,
+                    }),
+                }
+                : {
+                    // Datos para usuario anónimo
+                    nombre: formData.nombre,
+                    email: formData.email,
+                    telefono: formData.telefono,
+                    patente: formData.patente,
+                    marca: formData.marca,
+                    modelo: formData.modelo,
+                }),
+        };
+
+        try {
+            await reservasAPI.create(payload);
+            navigate('/dashboard'); // O pantalla de confirmación
+        } catch (err) {
+            console.error('Error al agendar reserva:', err);
+            setError(err.response?.data?.message || 'No se pudo procesar la reserva');
+        } finally {
+            setSubmitting(false);
         }
     };
 
