@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, Printer, Loader2 } from 'lucide-react';
-import { ordenesAPI } from '../services/api';
+import { boletasAPI } from '../services/api';
 
 export default function BoletasPage() {
   const [boletas, setBoletas] = useState([]);
@@ -11,7 +11,7 @@ export default function BoletasPage() {
     let isMounted = true;
     const fetchBoletas = async () => {
       try {
-        const { data } = await ordenesAPI.getAll();
+        const { data } = await boletasAPI.getAll();
         if (isMounted && Array.isArray(data)) {
           setBoletas(data);
         }
