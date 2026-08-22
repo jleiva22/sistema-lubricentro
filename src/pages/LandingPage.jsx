@@ -240,11 +240,10 @@ export default function LandingPage() {
                       key={oil.id}
                       type="button"
                       onClick={() => setSelectedOil(oil.id)}
-                      className={`p-4 rounded-xl border text-left transition ${
-                        selectedOil === oil.id
+                      className={`p-4 rounded-xl border text-left transition ${selectedOil === oil.id
                           ? 'bg-brand-50 border-brand-500 text-brand-950 ring-2 ring-brand-500/20'
                           : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300'
-                      }`}
+                        }`}
                     >
                       <span className="block font-bold text-sm text-slate-900">{oil.name}</span>
                       <span className="inline-block text-[11px] font-bold text-brand-700 bg-brand-100/70 px-2 py-0.5 rounded mt-1">
@@ -268,11 +267,10 @@ export default function LandingPage() {
                       key={brand}
                       type="button"
                       onClick={() => setSelectedBrand(brand)}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${
-                        selectedBrand === brand
+                      className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${selectedBrand === brand
                           ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
                           : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
+                        }`}
                     >
                       {brand}
                     </button>
@@ -293,11 +291,10 @@ export default function LandingPage() {
                         key={extra.id}
                         type="button"
                         onClick={() => toggleExtra(extra.id)}
-                        className={`p-3.5 rounded-xl border text-left flex items-start justify-between gap-3 transition ${
-                          checked
+                        className={`p-3.5 rounded-xl border text-left flex items-start justify-between gap-3 transition ${checked
                             ? 'bg-emerald-50 border-emerald-500 text-emerald-950'
                             : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'
-                        }`}
+                          }`}
                       >
                         <div>
                           <p className="text-xs font-bold text-slate-900">{extra.label}</p>
@@ -342,7 +339,7 @@ export default function LandingPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col justify-between shadow-xs">
               <div className="space-y-4">
                 <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3">Resumen de Cotización</h3>
-                
+
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between text-slate-700">
                     <span>{currentOilObj.name} ({selectedBrand})</span>
@@ -508,6 +505,7 @@ export default function LandingPage() {
                       <label className="block text-slate-700 font-semibold mb-1">Apellido</label>
                       <input
                         type="text"
+
                         required
                         placeholder="Ej: Pérez"
                         value={guestData.apellido}
