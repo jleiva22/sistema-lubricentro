@@ -49,6 +49,8 @@ export default function CotizarPage() {
         telefono: '',
         email: '',
         patente: '',
+        marca: '',
+        modelo: '',
     });
 
     const [submitting, setSubmitting] = useState(false);
@@ -152,8 +154,8 @@ export default function CotizarPage() {
                     vehiculo_id: selectedVehiculoId !== 'nuevo' ? selectedVehiculoId : null,
                     ...(selectedVehiculoId === 'nuevo' && {
                         patente: guestData.patente,
-                        marca: 'Multimarca',
-                        modelo: 'Estándar',
+                        marca: guestData.marca || 'Multimarca',
+                        modelo: guestData.modelo || 'Estándar',
                     }),
                 }
                 : {
@@ -163,11 +165,13 @@ export default function CotizarPage() {
                     telefono: guestData.telefono,
                     email: guestData.email,
                     patente: guestData.patente,
-                    marca: 'Multimarca',
-                    modelo: 'Estándar',
+                    marca: guestData.marca || 'Multimarca',
+                    modelo: guestData.modelo || 'Estándar',
                     fecha_programada: `${fechaReserva} ${horaReserva}:00`,
                     servicio_ids: selectedServiceIds,
                     observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
+                    tipo_aceite: selectedOil,
+                    marca_aceite: selectedBrand,
                 };
 
             const apiCall = isAuthenticated
@@ -438,20 +442,50 @@ export default function CotizarPage() {
 
                                             {/* Si selecciona 'nuevo' o no tiene vehículos previos */}
                                             {(selectedVehiculoId === 'nuevo' || misVehiculos.length === 0) && (
-                                                <div>
-                                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                                                        Patente del Vehículo
-                                                    </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            type="text"
-                                                            required
-                                                            placeholder="Patente (ej: AB1234)"
-                                                            value={guestData.patente}
-                                                            onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 pl-8 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
-                                                        />
-                                                        <Car size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                            Patente del Vehículo
+                                                        </label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                placeholder="Patente (ej: AB1234)"
+                                                                value={guestData.patente}
+                                                                onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 pl-8 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
+                                                            />
+                                                            <Car size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                                Marca
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                placeholder="Toyota"
+                                                                value={guestData.marca}
+                                                                onChange={(e) => setGuestData((p) => ({ ...p, marca: e.target.value }))}
+                                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                                Modelo
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                required
+                                                                placeholder="Yaris"
+                                                                value={guestData.modelo}
+                                                                onChange={(e) => setGuestData((p) => ({ ...p, modelo: e.target.value }))}
+                                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
@@ -506,14 +540,32 @@ export default function CotizarPage() {
                                                 className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                                             />
 
-                                            <input
-                                                type="text"
-                                                required
-                                                placeholder="Patente (ej: AB1234)"
-                                                value={guestData.patente}
-                                                onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
-                                            />
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Patente"
+                                                    value={guestData.patente}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Marca"
+                                                    value={guestData.marca}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, marca: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    placeholder="Modelo"
+                                                    value={guestData.modelo}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, modelo: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
+                                            </div>
                                         </div>
                                     )}
 

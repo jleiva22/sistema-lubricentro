@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {
   Droplet, LayoutDashboard, Users, Car, Wrench,
-  ClipboardList, FileText, Package, LogOut, Menu, X, PlusCircle
+  ClipboardList, FileText, Package, LogOut, Menu, X
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -15,24 +15,20 @@ const navItems = {
     { to: '/catalogo', icon: Package, label: 'Catálogo Servicios' },
     { to: '/boletas', icon: FileText, label: 'Boletas' },
     { to: '/usuarios', icon: Wrench, label: 'Gestión Usuarios' },
-    { to: '/clientes/nuevo', icon: PlusCircle, label: 'Crear Cliente' },
-    { to: '/vehiculos/nuevo', icon: PlusCircle, label: 'Crear Vehículo' },
-    { to: '/catalogo/nuevo', icon: PlusCircle, label: 'Crear Servicio' },
   ],
   mecanico: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Taller & Bahías' },
     { to: '/ordenes', icon: ClipboardList, label: 'Órdenes de Trabajo' },
-    { to: '/clientes', icon: Users, label: 'Clientes' },
     { to: '/vehiculos', icon: Car, label: 'Vehículos' },
     { to: '/catalogo', icon: Package, label: 'Catálogo Servicios' },
     { to: '/boletas', icon: FileText, label: 'Boletas' },
-    { to: '/vehiculos/nuevo', icon: PlusCircle, label: 'Registrar Vehículo' },
   ],
   cliente: [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Mi Panel' },
     { to: '/ordenes', icon: ClipboardList, label: 'Mis Órdenes' },
     { to: '/vehiculos', icon: Car, label: 'Mis Vehículos' },
     { to: '/catalogo', icon: Package, label: 'Catálogo & Precios' },
+    { to: '/boletas', icon: FileText, label: 'Mis Boletas' },
   ],
 };
 

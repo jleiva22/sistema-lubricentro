@@ -5,7 +5,7 @@ import { Droplet, Mail, Lock, AlertCircle, ShieldCheck, Wrench, User, UserPlus }
 
 export default function LoginPage() {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
-  
+
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,6 +73,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4 py-8">
       <div className="relative w-full max-w-md">
+        <p className="text-left mt-6 text-sm text-slate-500">
+          <Link to="/" className="text-brand-600 font-semibold hover:underline transition-colors">
+            ← Volver al Inicio
+          </Link>
+        </p>
         {/* Brand */}
         <div className="text-center mb-6">
           <Link to="/" className="inline-flex items-center gap-3 mb-2">
@@ -89,22 +94,20 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={() => { setMode('login'); setError(''); }}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
-              mode === 'login'
-                ? 'bg-white text-brand-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${mode === 'login'
+              ? 'bg-white text-brand-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+              }`}
           >
             Iniciar Sesión
           </button>
           <button
             type="button"
             onClick={() => { setMode('register'); setError(''); }}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${
-              mode === 'register'
-                ? 'bg-white text-brand-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
+            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all ${mode === 'register'
+              ? 'bg-white text-brand-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+              }`}
           >
             Crear Cuenta (Registro)
           </button>
@@ -289,12 +292,6 @@ export default function LoginPage() {
             </form>
           )}
         </div>
-
-        <p className="text-center mt-6 text-sm text-slate-500">
-          <Link to="/" className="text-brand-600 font-semibold hover:underline transition-colors">
-            ← Volver al Inicio
-          </Link>
-        </p>
       </div>
     </div>
   );

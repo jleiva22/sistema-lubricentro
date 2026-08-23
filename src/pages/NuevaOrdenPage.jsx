@@ -1,16 +1,25 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, BadgeDollarSign, Loader2 } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Plus, Trash2, ArrowLeft, BadgeDollarSign, Loader2, Search, X } from 'lucide-react';
 import { clientesAPI, vehiculosAPI, catalogoAPI, ordenesAPI } from '../services/api';
+import { useAuth } from '../context/useAuth';
 
 const today = new Date().toISOString().slice(0, 10);
 
 export default function NuevaOrdenPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
   const [clientes, setClientes] = useState([]);
-  const [vehiculos, setVehiculos] = useState([]);
+  const [allVehiculos, setAllVehiculos] = useState([]);
   const [catalogo, setCatalogo] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [servicioSearch, setServicioSearch] = useState('');
+
+  const isCliente = user?.rol === 'cliente';
+
+  // Accept pre-selected service IDs from CatalogPage navigation
+  const preselectedIds = location.state?.preselectedServiceIds || [];
 
   const [form, setForm] = useState({
     clienteId: '',
@@ -18,7 +27,9 @@ export default function NuevaOrdenPage() {
     fechaIngreso: today,
     diagnostico: 'Cambio de aceite y revisión preventiva general.',
     incluirIva: true,
-    selectedServiceIds: [],
+    selectedServiceIds: preselectedIds,
+    tipoAceite: '',
+    marcaAceite: '',
   });
 
   useEffect(() => {
@@ -26,7 +37,7 @@ export default function NuevaOrdenPage() {
     const fetchAllData = async () => {
       try {
         const [resClientes, resVehiculos, resCatalogo] = await Promise.all([
-          clientesAPI.getAll().catch(() => ({ data: [] })),
+          isCliente ? Promise.resolve({ data: [] }) : clientesAPI.getAll().catch(() => ({ data: [] })),
           vehiculosAPI.getAll().catch(() => ({ data: [] })),
           catalogoAPI.getAll().catch(() => ({ data: [] })),
         ]);
@@ -37,14 +48,16 @@ export default function NuevaOrdenPage() {
           const catList = resCatalogo.data || [];
 
           setClientes(cliList);
-          setVehiculos(vehList);
+          setAllVehiculos(vehList);
           setCatalogo(catList);
 
           setForm((prev) => ({
             ...prev,
             clienteId: cliList[0]?.id || '',
-            vehiculoId: vehList[0]?.id || '',
-            selectedServiceIds: catList[0]?.id ? [catList[0].id] : [],
+            // vehiculoId will be set by the vehiculosFiltrados effect
+            selectedServiceIds: prev.selectedServiceIds.length > 0
+              ? prev.selectedServiceIds
+              : (catList[0]?.id ? [catList[0].id] : []),
           }));
         }
       } catch (err) {
@@ -56,15 +69,38 @@ export default function NuevaOrdenPage() {
 
     fetchAllData();
     return () => { isMounted = false; };
-  }, []);
+  }, [isCliente]);
+
+  // Filter vehicles by selected client
+  const vehiculosFiltrados = useMemo(() => {
+    if (isCliente) return allVehiculos; // Backend already filters for client role
+    if (!form.clienteId) return allVehiculos;
+    return allVehiculos.filter(v => Number(v.cliente_id) === Number(form.clienteId));
+  }, [allVehiculos, form.clienteId, isCliente]);
+
+  // Reset vehiculoId when filtered list changes
+  useEffect(() => {
+    setForm(prev => ({ ...prev, vehiculoId: vehiculosFiltrados[0]?.id || '' }));
+  }, [vehiculosFiltrados]);
 
   const cliente = clientes.find((item) => String(item.id) === String(form.clienteId)) || clientes[0];
-  const vehiculo = vehiculos.find((item) => String(item.id) === String(form.vehiculoId)) || vehiculos[0];
+  const vehiculo = allVehiculos.find((item) => String(item.id) === String(form.vehiculoId)) || vehiculosFiltrados[0];
 
   const serviciosSeleccionados = useMemo(
     () => catalogo.filter((servicio) => form.selectedServiceIds.includes(servicio.id)),
     [catalogo, form.selectedServiceIds]
   );
+
+  // Filtrado de servicios por búsqueda (Tarea 6)
+  const serviciosFiltrados = useMemo(() => {
+    if (!servicioSearch) return catalogo;
+    const q = servicioSearch.toLowerCase();
+    return catalogo.filter(s =>
+      s.nombre.toLowerCase().includes(q) ||
+      (s.descripcion || '').toLowerCase().includes(q) ||
+      (s.categoria || '').toLowerCase().includes(q)
+    );
+  }, [catalogo, servicioSearch]);
 
   const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio_unitario ?? servicio.precio_base ?? 0), 0);
   const iva = form.incluirIva ? subtotal * 0.19 : 0;
@@ -99,23 +135,41 @@ export default function NuevaOrdenPage() {
 
     setSubmittingOrder(true);
     try {
-      const payload = {
-        vehiculo_id: Number(form.vehiculoId),
-        kilometraje_ingreso: Number(vehiculo?.kilometraje_actual || 0),
-        fecha_programada: form.fechaIngreso,
-        observaciones_fallas: form.diagnostico,
-        detalles: serviciosSeleccionados.map((s) => ({
-          servicio_id: s.id,
-          cantidad: 1,
-          precio_unitario: Number(s.precio_unitario ?? s.precio_base ?? 0),
-        })),
-      };
+      let res;
 
-      const res = await ordenesAPI.create(payload);
+      if (isCliente) {
+        // Cliente usa endpoint de solicitud
+        const payload = {
+          vehiculo_id: Number(form.vehiculoId),
+          fecha_programada: form.fechaIngreso,
+          observaciones_fallas: form.diagnostico,
+          servicio_ids: form.selectedServiceIds,
+          tipo_aceite: form.tipoAceite || undefined,
+          marca_aceite: form.marcaAceite || undefined,
+        };
+        res = await ordenesAPI.createOrdenCliente(payload);
+      } else {
+        // Admin/Mecánico usan endpoint completo
+        const payload = {
+          vehiculo_id: Number(form.vehiculoId),
+          kilometraje_ingreso: Number(vehiculo?.kilometraje_actual || 0),
+          fecha_programada: form.fechaIngreso,
+          observaciones_fallas: form.diagnostico,
+          tipo_aceite: form.tipoAceite || undefined,
+          marca_aceite: form.marcaAceite || undefined,
+          detalles: serviciosSeleccionados.map((s) => ({
+            servicio_id: s.id,
+            cantidad: 1,
+            precio_unitario: Number(s.precio_unitario ?? s.precio_base ?? 0),
+          })),
+        };
+        res = await ordenesAPI.create(payload);
+      }
+
       const createdOrder = res.data?.data || res.data;
 
       const previewState = {
-        cliente,
+        cliente: isCliente ? { nombre: user.nombre, apellido: user.apellido } : cliente,
         vehiculo,
         fechaIngreso: form.fechaIngreso,
         diagnostico: form.diagnostico,
@@ -146,7 +200,9 @@ export default function NuevaOrdenPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-brand-600">Gestión</p>
-          <h1 className="text-3xl font-bold text-slate-900">Nueva orden de trabajo</h1>
+          <h1 className="text-3xl font-bold text-slate-900">
+            {isCliente ? 'Solicitar servicio' : 'Nueva orden de trabajo'}
+          </h1>
         </div>
 
         <Link
@@ -160,38 +216,42 @@ export default function NuevaOrdenPage() {
 
       <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
         <div className="space-y-6">
+          {/* Datos del vehículo */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Datos del vehículo</h2>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-1.5 text-sm font-semibold text-slate-700">
-                <span>Cliente</span>
-                <select
-                  value={form.clienteId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, clienteId: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
-                >
-                  {clientes.length === 0 ? (
-                    <option value="">Sin clientes en la BD</option>
-                  ) : (
-                    clientes.map((item) => (
-                      <option key={item.id} value={item.id}>{item.nombre} {item.apellido || ''}</option>
-                    ))
-                  )}
-                </select>
-              </label>
+              {/* Solo admin/mecánico ve selector de clientes */}
+              {!isCliente && (
+                <label className="space-y-1.5 text-sm font-semibold text-slate-700">
+                  <span>Cliente</span>
+                  <select
+                    value={form.clienteId}
+                    onChange={(e) => setForm((prev) => ({ ...prev, clienteId: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
+                  >
+                    {clientes.length === 0 ? (
+                      <option value="">Sin clientes en la BD</option>
+                    ) : (
+                      clientes.map((item) => (
+                        <option key={item.id} value={item.id}>{item.nombre} {item.apellido || ''}</option>
+                      ))
+                    )}
+                  </select>
+                </label>
+              )}
 
               <label className="space-y-1.5 text-sm font-semibold text-slate-700">
-                <span>Vehículo</span>
+                <span>{isCliente ? 'Mi vehículo' : 'Vehículo'}</span>
                 <select
                   value={form.vehiculoId}
                   onChange={(e) => setForm((prev) => ({ ...prev, vehiculoId: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
                 >
-                  {vehiculos.length === 0 ? (
-                    <option value="">Sin vehículos en la BD</option>
+                  {vehiculosFiltrados.length === 0 ? (
+                    <option value="">Sin vehículos registrados para este cliente</option>
                   ) : (
-                    vehiculos.map((item) => (
+                    vehiculosFiltrados.map((item) => (
                       <option key={item.id} value={item.id}>{item.marca} {item.modelo} - {item.patente}</option>
                     ))
                   )}
@@ -199,7 +259,7 @@ export default function NuevaOrdenPage() {
               </label>
 
               <label className="space-y-1.5 text-sm font-semibold text-slate-700">
-                <span>Fecha de ingreso</span>
+                <span>Fecha programada</span>
                 <input
                   type="date"
                   value={form.fechaIngreso}
@@ -210,11 +270,43 @@ export default function NuevaOrdenPage() {
 
               <div className="rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-xs text-brand-800 flex flex-col justify-center">
                 <div className="font-bold">Tiempo estimado de atención</div>
-                <div className="mt-0.5 text-brand-700">{tiempoEstimado || 30} minutos aprox. / 1 hora si incluye otro servicio adicional</div>
+                <div className="mt-0.5 text-brand-700">{tiempoEstimado || 30} minutos aprox.</div>
               </div>
             </div>
           </div>
 
+          {/* Tipo y marca de aceite (Tarea 2 + 4) */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <h2 className="mb-4 text-lg font-bold text-slate-900">Información del aceite</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1.5 text-sm font-semibold text-slate-700">
+                <span>Tipo de aceite</span>
+                <select
+                  value={form.tipoAceite}
+                  onChange={(e) => setForm((prev) => ({ ...prev, tipoAceite: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
+                >
+                  <option value="">No especificado</option>
+                  <option value="mineral">Mineral (cambio cada 5.000 km)</option>
+                  <option value="semisintetico">Semisintético (cambio cada 10.000 km)</option>
+                  <option value="sintetico">Sintético (cambio cada 10.000 - 15.000 km)</option>
+                </select>
+              </label>
+
+              <label className="space-y-1.5 text-sm font-semibold text-slate-700">
+                <span>Marca del aceite</span>
+                <input
+                  type="text"
+                  value={form.marcaAceite}
+                  onChange={(e) => setForm((prev) => ({ ...prev, marcaAceite: e.target.value }))}
+                  placeholder="Ej: Mobil 1, Castrol, Shell Helix"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal placeholder:text-slate-400 focus:border-brand-600 focus:outline-none text-sm"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Diagnóstico y servicios */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Diagnóstico y servicios</h2>
 
@@ -229,11 +321,30 @@ export default function NuevaOrdenPage() {
               />
             </label>
 
-            <div className="space-y-3">
-              {catalogo.length === 0 ? (
-                <p className="text-xs text-slate-500 py-4 text-center">No hay servicios en el catálogo.</p>
+            {/* Buscador de servicios (Tarea 6) */}
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500">
+              <Search size={16} />
+              <input
+                type="text"
+                value={servicioSearch}
+                onChange={(e) => setServicioSearch(e.target.value)}
+                placeholder="Buscar servicio por nombre..."
+                className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
+              {servicioSearch && (
+                <button type="button" onClick={() => setServicioSearch('')} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {serviciosFiltrados.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  {servicioSearch ? 'No se encontraron servicios con esa búsqueda.' : 'No hay servicios en el catálogo.'}
+                </p>
               ) : (
-                catalogo.map((servicio) => {
+                serviciosFiltrados.map((servicio) => {
                   const checked = form.selectedServiceIds.includes(servicio.id);
                   const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
                   const tiempo = Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30);
@@ -243,7 +354,7 @@ export default function NuevaOrdenPage() {
                       key={servicio.id}
                       type="button"
                       onClick={() => toggleServicio(servicio.id)}
-                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition ${checked
+                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${checked
                           ? 'border-brand-500 bg-brand-50/80 text-slate-900'
                           : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
                         }`}
@@ -267,7 +378,8 @@ export default function NuevaOrdenPage() {
           </div>
         </div>
 
-        <aside className="space-y-6">
+        {/* Side panel — Resumen (Tarea 6) */}
+        <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Resumen</h2>
 
@@ -287,25 +399,32 @@ export default function NuevaOrdenPage() {
               )}
             </div>
 
+            {form.tipoAceite && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <span className="font-bold">Aceite:</span> {form.tipoAceite}
+                {form.marcaAceite && ` — ${form.marcaAceite}`}
+              </div>
+            )}
+
             <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm text-slate-700">
               <div className="flex items-center justify-between">
                 <span>Subtotal</span>
                 <span className="font-semibold">${subtotal.toLocaleString('es-CL')}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>IVA</span>
-                <span className="font-semibold">${iva.toLocaleString('es-CL')}</span>
+                <span>IVA (19%)</span>
+                <span className="font-semibold">${Math.round(iva).toLocaleString('es-CL')}</span>
               </div>
               <div className="flex items-center justify-between text-base font-bold text-slate-900">
                 <span>Total</span>
-                <span className="text-brand-600">${total.toLocaleString('es-CL')}</span>
+                <span className="text-brand-600">${Math.round(total).toLocaleString('es-CL')}</span>
               </div>
             </div>
 
             <button
               type="submit"
               disabled={submittingOrder || loadingData}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 disabled:opacity-60"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 disabled:opacity-60 cursor-pointer"
             >
               {submittingOrder ? (
                 <>
@@ -315,7 +434,7 @@ export default function NuevaOrdenPage() {
               ) : (
                 <>
                   <BadgeDollarSign size={18} />
-                  Crear orden
+                  {isCliente ? 'Solicitar servicio' : 'Crear orden'}
                 </>
               )}
             </button>
