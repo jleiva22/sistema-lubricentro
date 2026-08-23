@@ -1,29 +1,44 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Printer, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
+const normalizeOrder = (incomingState) => {
+  const order = incomingState ?? {};
+
+  const servicios = (order.servicios ?? []).map((servicio) => ({
+    id: servicio.id,
+    nombre: servicio.nombre || 'Servicio',
+    marca: servicio.marca || 'Multimarca',
+    tiempoEstimado: servicio.tiempoEstimado || `${Number(servicio.tiempo_minutos ?? 30)} min`,
+    precio: Number(servicio.precio ?? servicio.precio_unitario ?? 0),
+  }));
+
+  const subtotal = Number(order.subtotal ?? servicios.reduce((sum, s) => sum + Number(s.precio || 0), 0));
+  const iva = Number(order.iva ?? (order.incluirIva ? subtotal * 0.19 : 0));
+  const total = Number(order.total ?? subtotal + iva);
+
+  return {
+    cliente: order.cliente ?? { nombre: 'Cliente', apellido: '', email: 'sin-email@lubricentro.cl', telefono: '+56 9 0000 0000' },
+    vehiculo: order.vehiculo ?? { marca: 'Vehículo', modelo: 'General', patente: 'SN', anio: new Date().getFullYear() },
+    servicios,
+    subtotal,
+    iva,
+    total,
+    incluirIva: order.incluirIva ?? true,
+    diagnostico: order.diagnostico || 'Sin observaciones registradas.',
+    fechaIngreso: order.fechaIngreso || new Date().toISOString().slice(0, 10),
+    ordenId: order.ordenId ?? 0,
+  };
+};
+
 export default function BoletaPreviewPage() {
   const navigate = useNavigate();
   const { state } = useLocation();
-
-  const order = state ?? {
-    cliente: { nombre: 'Ana', apellido: 'Contreras', email: 'ana.contreras@gmail.com', telefono: '+56 9 1234 5678' },
-    vehiculo: { marca: 'Toyota', modelo: 'Corolla', patente: 'AB-1234', anio: 2022 },
-    servicios: [
-      { id: 1, nombre: 'Cambio de aceite sintético Mobil 1', tiempoEstimado: '45 min', precio: 59000 },
-      { id: 4, nombre: 'Control y cambio de filtro de aceite', tiempoEstimado: '20 min', precio: 12000 },
-    ],
-    subtotal: 71000,
-    iva: 13490,
-    total: 84490,
-    incluirIva: true,
-    diagnostico: 'Cambio de aceite sintético de alta gama. Filtro reemplazado. Niveles de fluido e inspección de neumáticos OK.',
-    fechaIngreso: new Date().toISOString().slice(0, 10),
-  };
+  const order = normalizeOrder(state);
 
   const subtotal = Number(order.subtotal ?? 0);
   const iva = Number(order.iva ?? 0);
   const total = Number(order.total ?? subtotal + iva);
-  const numeroBoleta = 1003;
+  const numeroBoleta = order.ordenId ? String(order.ordenId).padStart(4, '0') : '0001';
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -40,7 +55,7 @@ export default function BoletaPreviewPage() {
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-emerald-400 font-semibold bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
-            <CheckCircle2 size={14} /> Pago Registrado / Boleta Electrónica
+            <CheckCircle2 size={14} /> Boleta lista para impresión
           </span>
           <button
             type="button"
@@ -66,7 +81,7 @@ export default function BoletaPreviewPage() {
 
           <div className="text-right bg-slate-100 p-4 rounded-xl border border-slate-300">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Boleta Electrónica</p>
-            <p className="text-2xl font-black text-slate-900">N° 000{numeroBoleta}</p>
+            <p className="text-2xl font-black text-slate-900">N° {numeroBoleta}</p>
             <p className="text-xs font-medium text-slate-600 mt-1">Fecha Emisión: {order.fechaIngreso}</p>
           </div>
         </div>
@@ -97,14 +112,16 @@ export default function BoletaPreviewPage() {
               <thead className="bg-slate-900 text-white">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Detalle del Servicio / Producto</th>
+                  <th className="px-4 py-3 font-semibold">Marca</th>
                   <th className="px-4 py-3 font-semibold">Tiempo Est.</th>
                   <th className="px-4 py-3 font-semibold text-right">Monto (CLP)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {(order.servicios ?? []).map((servicio) => (
+                {order.servicios.map((servicio) => (
                   <tr key={servicio.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 text-slate-900 font-medium">{servicio.nombre}</td>
+                    <td className="px-4 py-3 text-slate-600">{servicio.marca}</td>
                     <td className="px-4 py-3 text-slate-600">{servicio.tiempoEstimado}</td>
                     <td className="px-4 py-3 text-right font-bold text-slate-900">${Number(servicio.precio).toLocaleString('es-CL')}</td>
                   </tr>
@@ -116,7 +133,7 @@ export default function BoletaPreviewPage() {
 
         {/* Observations / Diagnostic */}
         <div className="mt-6 rounded-xl bg-slate-100 p-4 border border-slate-200">
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">Observaciones Técnicas de Fosa</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-600">Observaciones Técnicas</p>
           <p className="text-xs text-slate-800 leading-relaxed">{order.diagnostico}</p>
         </div>
 

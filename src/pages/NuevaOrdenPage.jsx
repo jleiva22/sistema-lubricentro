@@ -66,9 +66,10 @@ export default function NuevaOrdenPage() {
     [catalogo, form.selectedServiceIds]
   );
 
-  const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio_base || 0), 0);
+  const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio_unitario ?? servicio.precio_base ?? 0), 0);
   const iva = form.incluirIva ? subtotal * 0.19 : 0;
   const total = subtotal + iva;
+  const tiempoEstimado = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30), 0);
 
   const toggleServicio = (id) => {
     setForm((prev) => {
@@ -106,7 +107,7 @@ export default function NuevaOrdenPage() {
         detalles: serviciosSeleccionados.map((s) => ({
           servicio_id: s.id,
           cantidad: 1,
-          precio_unitario: Number(s.precio_unitario || s.precio_base || 0),
+          precio_unitario: Number(s.precio_unitario ?? s.precio_base ?? 0),
         })),
       };
 
@@ -118,7 +119,13 @@ export default function NuevaOrdenPage() {
         vehiculo,
         fechaIngreso: form.fechaIngreso,
         diagnostico: form.diagnostico,
-        servicios: serviciosSeleccionados,
+        servicios: serviciosSeleccionados.map((servicio) => ({
+          id: servicio.id,
+          nombre: servicio.nombre,
+          marca: servicio.marca,
+          tiempoEstimado: `${Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30)} min`,
+          precio: Number(servicio.precio_unitario ?? servicio.precio_base ?? 0),
+        })),
         subtotal,
         iva,
         total,
@@ -203,7 +210,7 @@ export default function NuevaOrdenPage() {
 
               <div className="rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-xs text-brand-800 flex flex-col justify-center">
                 <div className="font-bold">Tiempo estimado de atención</div>
-                <div className="mt-0.5 text-brand-700">30 min aprox. / 1 hora si incluye servicio adicional</div>
+                <div className="mt-0.5 text-brand-700">{tiempoEstimado || 30} minutos aprox. / 1 hora si incluye otro servicio adicional</div>
               </div>
             </div>
           </div>
@@ -228,6 +235,8 @@ export default function NuevaOrdenPage() {
               ) : (
                 catalogo.map((servicio) => {
                   const checked = form.selectedServiceIds.includes(servicio.id);
+                  const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
+                  const tiempo = Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30);
 
                   return (
                     <button
@@ -244,7 +253,7 @@ export default function NuevaOrdenPage() {
                         <div className="mt-0.5 text-xs text-slate-500">{servicio.descripcion}</div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-bold text-brand-600 text-sm">${Number(servicio.precio_base || 0).toLocaleString('es-CL')}</span>
+                        <span className="font-bold text-brand-600 text-sm">${precio.toLocaleString('es-CL')}</span>
                         <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
                           {checked ? '✓' : ''}
                         </span>
@@ -261,66 +270,53 @@ export default function NuevaOrdenPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Resumen</h2>
 
-            <div className="space-y-2">
+            <div className="space-y-3 text-sm text-slate-700">
               {serviciosSeleccionados.length === 0 ? (
-                <p className="text-xs text-slate-500">No hay servicios seleccionados.</p>
+                <p className="text-xs text-slate-500">Aún no has seleccionado servicios.</p>
               ) : (
-                serviciosSeleccionados.map((servicio) => (
-                  <div key={servicio.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 border border-slate-200">
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">{servicio.nombre}</p>
-                      <p className="text-[11px] text-slate-500">{servicio.tiempoEstimado}</p>
+                serviciosSeleccionados.map((servicio) => {
+                  const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
+                  return (
+                    <div key={servicio.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 border border-slate-200">
+                      <span className="text-xs font-medium text-slate-700">{servicio.nombre}</span>
+                      <span className="font-bold text-brand-600 text-xs">${precio.toLocaleString('es-CL')}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-brand-600">${servicio.precio.toLocaleString('es-CL')}</span>
-                      <button
-                        type="button"
-                        onClick={() => toggleServicio(servicio.id)}
-                        className="text-red-500 hover:text-red-700 transition p-1 cursor-pointer"
-                        aria-label={`Eliminar ${servicio.nombre}`}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
-            <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-xs text-slate-700">
+            <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm text-slate-700">
               <div className="flex items-center justify-between">
                 <span>Subtotal</span>
                 <span className="font-semibold">${subtotal.toLocaleString('es-CL')}</span>
               </div>
-
-              <label className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 border border-slate-200 cursor-pointer">
-                <span>¿Incluir IVA (19%)?</span>
-                <input
-                  checked={form.incluirIva}
-                  onChange={(e) => setForm((prev) => ({ ...prev, incluirIva: e.target.checked }))}
-                  type="checkbox"
-                  className="h-4 w-4 accent-brand-600 cursor-pointer"
-                />
-              </label>
-
-              <div className="flex items-center justify-between text-slate-500">
-                <span>IVA (19%)</span>
-                <span>${iva.toLocaleString('es-CL')}</span>
+              <div className="flex items-center justify-between">
+                <span>IVA</span>
+                <span className="font-semibold">${iva.toLocaleString('es-CL')}</span>
               </div>
-
-              <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-black text-slate-900">
+              <div className="flex items-center justify-between text-base font-bold text-slate-900">
                 <span>Total</span>
-                <span className="text-emerald-600 text-lg">${total.toLocaleString('es-CL')}</span>
+                <span className="text-brand-600">${total.toLocaleString('es-CL')}</span>
               </div>
             </div>
 
             <button
               type="submit"
-              disabled={submittingOrder}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-bold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 text-sm cursor-pointer disabled:opacity-60"
+              disabled={submittingOrder || loadingData}
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-3 font-semibold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 disabled:opacity-60"
             >
-              <BadgeDollarSign size={18} />
-              {submittingOrder ? 'Guardando en BD...' : 'Pagar e imprimir boleta'}
+              {submittingOrder ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <BadgeDollarSign size={18} />
+                  Crear orden
+                </>
+              )}
             </button>
           </div>
         </aside>
