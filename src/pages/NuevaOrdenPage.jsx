@@ -253,6 +253,7 @@ export default function NuevaOrdenPage() {
                         <div className="mt-0.5 text-xs text-slate-500">{servicio.descripcion}</div>
                       </div>
                       <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-slate-500 font-medium">{tiempo} min</span>
                         <span className="font-bold text-brand-600 text-sm">${precio.toLocaleString('es-CL')}</span>
                         <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
                           {checked ? '✓' : ''}
