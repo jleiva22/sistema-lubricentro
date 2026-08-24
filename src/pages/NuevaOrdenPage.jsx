@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Trash2, ArrowLeft, BadgeDollarSign, Loader2, Search, X } from 'lucide-react';
+import { ArrowLeft, BadgeDollarSign, Loader2, Search, X, Droplet } from 'lucide-react';
 import { clientesAPI, vehiculosAPI, catalogoAPI, ordenesAPI } from '../services/api';
 import { useAuth } from '../context/useAuth';
 
@@ -18,7 +18,6 @@ export default function NuevaOrdenPage() {
 
   const isCliente = user?.rol === 'cliente';
 
-  // Accept pre-selected service IDs from CatalogPage navigation
   const preselectedIds = location.state?.preselectedServiceIds || [];
 
   const [form, setForm] = useState({
@@ -28,8 +27,6 @@ export default function NuevaOrdenPage() {
     diagnostico: 'Cambio de aceite y revisión preventiva general.',
     incluirIva: true,
     selectedServiceIds: preselectedIds,
-    tipoAceite: '',
-    marcaAceite: '',
   });
 
   useEffect(() => {
@@ -54,7 +51,6 @@ export default function NuevaOrdenPage() {
           setForm((prev) => ({
             ...prev,
             clienteId: cliList[0]?.id || '',
-            // vehiculoId will be set by the vehiculosFiltrados effect
             selectedServiceIds: prev.selectedServiceIds.length > 0
               ? prev.selectedServiceIds
               : (catList[0]?.id ? [catList[0].id] : []),
@@ -71,14 +67,12 @@ export default function NuevaOrdenPage() {
     return () => { isMounted = false; };
   }, [isCliente]);
 
-  // Filter vehicles by selected client
   const vehiculosFiltrados = useMemo(() => {
-    if (isCliente) return allVehiculos; // Backend already filters for client role
+    if (isCliente) return allVehiculos;
     if (!form.clienteId) return allVehiculos;
     return allVehiculos.filter(v => Number(v.cliente_id) === Number(form.clienteId));
   }, [allVehiculos, form.clienteId, isCliente]);
 
-  // Reset vehiculoId when filtered list changes
   useEffect(() => {
     setForm(prev => ({ ...prev, vehiculoId: vehiculosFiltrados[0]?.id || '' }));
   }, [vehiculosFiltrados]);
@@ -91,7 +85,6 @@ export default function NuevaOrdenPage() {
     [catalogo, form.selectedServiceIds]
   );
 
-  // Filtrado de servicios por búsqueda (Tarea 6)
   const serviciosFiltrados = useMemo(() => {
     if (!servicioSearch) return catalogo;
     const q = servicioSearch.toLowerCase();
@@ -138,25 +131,19 @@ export default function NuevaOrdenPage() {
       let res;
 
       if (isCliente) {
-        // Cliente usa endpoint de solicitud
         const payload = {
           vehiculo_id: Number(form.vehiculoId),
           fecha_programada: form.fechaIngreso,
           observaciones_fallas: form.diagnostico,
           servicio_ids: form.selectedServiceIds,
-          tipo_aceite: form.tipoAceite || undefined,
-          marca_aceite: form.marcaAceite || undefined,
         };
         res = await ordenesAPI.createOrdenCliente(payload);
       } else {
-        // Admin/Mecánico usan endpoint completo
         const payload = {
           vehiculo_id: Number(form.vehiculoId),
           kilometraje_ingreso: Number(vehiculo?.kilometraje_actual || 0),
           fecha_programada: form.fechaIngreso,
           observaciones_fallas: form.diagnostico,
-          tipo_aceite: form.tipoAceite || undefined,
-          marca_aceite: form.marcaAceite || undefined,
           detalles: serviciosSeleccionados.map((s) => ({
             servicio_id: s.id,
             cantidad: 1,
@@ -221,7 +208,6 @@ export default function NuevaOrdenPage() {
             <h2 className="mb-4 text-lg font-bold text-slate-900">Datos del vehículo</h2>
 
             <div className="grid gap-4 md:grid-cols-2">
-              {/* Solo admin/mecánico ve selector de clientes */}
               {!isCliente && (
                 <label className="space-y-1.5 text-sm font-semibold text-slate-700">
                   <span>Cliente</span>
@@ -275,35 +261,42 @@ export default function NuevaOrdenPage() {
             </div>
           </div>
 
-          {/* Tipo y marca de aceite (Tarea 2 + 4) */}
+          {/* Información del Aceite (Visual / Informativo) */}
+          {/* Información del Aceite (Visual / Informativo) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">Información del aceite</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-1.5 text-sm font-semibold text-slate-700">
-                <span>Tipo de aceite</span>
-                <select
-                  value={form.tipoAceite}
-                  onChange={(e) => setForm((prev) => ({ ...prev, tipoAceite: e.target.value }))}
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal focus:border-brand-600 focus:outline-none"
-                >
-                  <option value="">No especificado</option>
-                  <option value="mineral">Mineral (cambio cada 5.000 km)</option>
-                  <option value="semisintetico">Semisintético (cambio cada 10.000 km)</option>
-                  <option value="sintetico">Sintético (cambio cada 10.000 - 15.000 km)</option>
-                </select>
-              </label>
+            <h2 className="mb-2 text-lg font-bold text-slate-900">Especificaciones del lubricante</h2>
+            <p className="text-xs text-slate-500 mb-4">
+              El tipo, marca y categoría del lubricante quedan asignados según los servicios seleccionados en el catálogo.
+            </p>
 
-              <label className="space-y-1.5 text-sm font-semibold text-slate-700">
-                <span>Marca del aceite</span>
-                <input
-                  type="text"
-                  value={form.marcaAceite}
-                  onChange={(e) => setForm((prev) => ({ ...prev, marcaAceite: e.target.value }))}
-                  placeholder="Ej: Mobil 1, Castrol, Shell Helix"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal placeholder:text-slate-400 focus:border-brand-600 focus:outline-none text-sm"
-                />
-              </label>
-            </div>
+            {serviciosSeleccionados.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {serviciosSeleccionados.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex flex-col gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs"
+                  >
+                    <div className="flex items-center gap-2 font-bold text-blue-950 text-sm">
+                      <Droplet size={16} className="text-blue-600 shrink-0" />
+                      <span>{s.nombre}</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
+                      <span className="rounded-md bg-white border border-blue-200 px-2 py-0.5 font-semibold text-slate-700">
+                        Categoría: <strong className="text-blue-700">{s.categoria || 'Lubricantes'}</strong>
+                      </span>
+                      <span className="rounded-md bg-white border border-blue-200 px-2 py-0.5 font-semibold text-slate-700">
+                        Marca: <strong className="text-blue-700">{s.marca || 'Multimarca'}</strong>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
+                Selecciona al menos un servicio del catálogo más abajo para visualizar su marca y categoría.
+              </div>
+            )}
           </div>
 
           {/* Diagnóstico y servicios */}
@@ -321,7 +314,7 @@ export default function NuevaOrdenPage() {
               />
             </label>
 
-            {/* Buscador de servicios (Tarea 6) */}
+            {/* Buscador de servicios */}
             <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500">
               <Search size={16} />
               <input
@@ -355,8 +348,8 @@ export default function NuevaOrdenPage() {
                       type="button"
                       onClick={() => toggleServicio(servicio.id)}
                       className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${checked
-                          ? 'border-brand-500 bg-brand-50/80 text-slate-900'
-                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                        ? 'border-brand-500 bg-brand-50/80 text-slate-900'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
                         }`}
                     >
                       <div>
@@ -378,7 +371,7 @@ export default function NuevaOrdenPage() {
           </div>
         </div>
 
-        {/* Side panel — Resumen (Tarea 6) */}
+        {/* Side panel — Resumen */}
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="mb-4 text-lg font-bold text-slate-900">Resumen</h2>
@@ -398,13 +391,6 @@ export default function NuevaOrdenPage() {
                 })
               )}
             </div>
-
-            {form.tipoAceite && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <span className="font-bold">Aceite:</span> {form.tipoAceite}
-                {form.marcaAceite && ` — ${form.marcaAceite}`}
-              </div>
-            )}
 
             <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm text-slate-700">
               <div className="flex items-center justify-between">

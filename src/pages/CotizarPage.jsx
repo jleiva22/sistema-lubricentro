@@ -1,46 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { ordenesAPI, vehiculosAPI } from '../services/api';
-import { Clock, Calendar, Check, X, ArrowLeft, Car, User } from 'lucide-react';
-
-const oilTypes = [
-    { id: 'mineral', name: 'Aceite Mineral', km: '5.000 KM', price: 48000, desc: 'Para motores tradicionales' },
-    { id: 'semisintetico', name: 'Aceite Semisintético', km: '10.000 KM', price: 59000, desc: 'Uso urbano y carretera' },
-    { id: 'sintetico', name: 'Aceite Sintético Premium', km: '15.000 KM', price: 79000, desc: 'Máxima protección' },
-];
-
-const oilBrands = ['Mobil 1', 'Castrol', 'Liqui Moly', 'Shell Helix', 'Valvoline', 'Pennzoil'];
-
-const additionalServices = [
-    { id: 'filtroAceite', label: 'Cambio Filtro de Aceite', price: 18000, duration: 15, serviceId: 4 },
-    { id: 'filtroAire', label: 'Revisión Líquidos Refrigerantes', price: 22000, duration: 15, serviceId: 5 },
-    { id: 'fluidos', label: 'Líquido Frenos / Hidráulico', price: 25000, duration: 20, serviceId: 6 },
-    { id: 'frenosNeumaticos', label: 'Inspección Frenos y Neumáticos', price: 26000, duration: 25, serviceId: 10 },
-];
+import { ordenesAPI, vehiculosAPI, catalogoAPI } from '../services/api';
+import { Clock, Calendar, Check, X, ArrowLeft, Car, User, Loader2, Droplet } from 'lucide-react';
 
 export default function CotizarPage() {
     const { user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
 
-    // Quote State
-    const [selectedOil, setSelectedOil] = useState('semisintetico');
-    const [selectedBrand, setSelectedBrand] = useState('Mobil 1');
-    const [extras, setExtras] = useState({
-        filtroAceite: true,
-        filtroAire: false,
-        fluidos: true,
-        frenosNeumaticos: false,
-    });
+    // Estado del Catálogo
+    const [catalogo, setCatalogo] = useState([]);
+    const [loadingCatalogo, setLoadingCatalogo] = useState(true);
+    const [errorCatalogo, setErrorCatalogo] = useState(null);
+
+    // Estado de Selecciones
+    const [selectedServiceId, setSelectedServiceId] = useState(null);
+    const [selectedBrand, setSelectedBrand] = useState('');
+    const [selectedExtraIds, setSelectedExtraIds] = useState([]);
 
     const [fechaReserva, setFechaReserva] = useState(new Date().toISOString().slice(0, 10));
     const [horaReserva, setHoraReserva] = useState('10:00');
 
-    // User & Vehicle State
+    // Estado de Usuario y Vehículo
     const [misVehiculos, setMisVehiculos] = useState([]);
     const [selectedVehiculoId, setSelectedVehiculoId] = useState('nuevo');
 
-    // Modal State
+    // Estado del Modal
     const [showBookingModal, setShowBookingModal] = useState(false);
     const [guestData, setGuestData] = useState({
         nombre: '',
@@ -57,12 +42,65 @@ export default function CotizarPage() {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [createdOrderId, setCreatedOrderId] = useState(null);
 
-    // Cargar vehículos del cliente autenticado
+    // Cargar Catálogo (Intenta primero /catalogos/public, si falla usa /catalogos)
+    useEffect(() => {
+        let isMounted = true;
+        setLoadingCatalogo(true);
+
+        const apiCall = catalogoAPI.getPublic
+            ? catalogoAPI.getPublic().catch(() => catalogoAPI.getAll())
+            : catalogoAPI.getAll();
+
+        apiCall
+            .then(res => {
+                if (!isMounted) return;
+
+                // Soporte para distintas envolturas JSON de backend
+                const rawData = res.data?.data || res.data?.catalogos || res.data?.servicios || res.data || [];
+                const list = Array.isArray(rawData) ? rawData : [];
+
+                // Normalizar nombres de columnas de MySQL
+                const normalizedList = list.map(item => ({
+                    id: item.id || item.id_catalogo || item.id_servicio,
+                    nombre: item.nombre || item.nombre_servicio || item.titulo || 'Servicio sin nombre',
+                    descripcion: item.descripcion || item.detalle || '',
+                    precio: Number(item.precio || item.precio_unitario || item.precio_base || item.valor || 0),
+                    tiempo: Number(item.tiempo_minutos || item.duracion || item.duracion_estimada || 30),
+                    categoria: item.categoria || item.tipo || 'General',
+                    marca: item.marca || item.marca_aceite || null,
+                }));
+
+                setCatalogo(normalizedList);
+
+                // Seleccionar servicio por defecto
+                if (normalizedList.length > 0) {
+                    const defaultService = normalizedList.find(s =>
+                        s.nombre.toLowerCase().includes('aceite') ||
+                        s.categoria.toLowerCase().includes('aceite') ||
+                        s.categoria.toLowerCase().includes('lubricat')
+                    ) || normalizedList[0];
+
+                    setSelectedServiceId(defaultService.id);
+                    if (defaultService.marca) setSelectedBrand(defaultService.marca);
+                }
+            })
+            .catch(err => {
+                console.error('Error al cargar catálogo desde API:', err);
+                if (isMounted) setErrorCatalogo('No se pudieron obtener los servicios.');
+            })
+            .finally(() => {
+                if (isMounted) setLoadingCatalogo(false);
+            });
+
+        return () => { isMounted = false; };
+    }, []);
+
+    // Cargar vehículos del usuario si está autenticado
     useEffect(() => {
         if (isAuthenticated) {
             vehiculosAPI?.getAll?.()
                 .then(res => {
-                    const vehiculos = res.data || res;
+                    const vehiculos = res.data?.data || res.data || [];
                     if (Array.isArray(vehiculos) && vehiculos.length > 0) {
                         setMisVehiculos(vehiculos);
                         const primerVehiculo = vehiculos[0];
@@ -74,7 +112,7 @@ export default function CotizarPage() {
         }
     }, [isAuthenticated]);
 
-    // Pre-poblar datos de usuario al autenticarse
+    // Pre-poblar datos de usuario
     useEffect(() => {
         if (user) {
             setGuestData(prev => ({
@@ -88,7 +126,42 @@ export default function CotizarPage() {
         }
     }, [user]);
 
-    // Manejar cambio de vehículo registrado
+    // Clasificar servicios principales y secundarios dinámicamente
+    const serviciosAceite = useMemo(() => {
+        const list = catalogo.filter(s =>
+            s.nombre.toLowerCase().includes('aceite') ||
+            s.categoria.toLowerCase().includes('aceite') ||
+            s.categoria.toLowerCase().includes('lubricat')
+        );
+        return list.length > 0 ? list : catalogo;
+    }, [catalogo]);
+
+    const serviciosAdicionales = useMemo(() => {
+        return catalogo.filter(s => !serviciosAceite.some(a => a.id === s.id));
+    }, [catalogo, serviciosAceite]);
+
+    const marcasDisponibles = useMemo(() => {
+        const brands = catalogo.map(s => s.marca).filter(Boolean);
+        return [...new Set(brands)];
+    }, [catalogo]);
+
+    // Totales
+    const currentServiceObj = catalogo.find(s => s.id === selectedServiceId) || serviciosAceite[0] || {};
+    const basePrice = currentServiceObj.precio || 0;
+    const baseTime = currentServiceObj.tiempo || 30;
+
+    const extrasSeleccionados = useMemo(() => {
+        return catalogo.filter(s => selectedExtraIds.includes(s.id));
+    }, [catalogo, selectedExtraIds]);
+
+    const extrasPrice = extrasSeleccionados.reduce((sum, item) => sum + item.precio, 0);
+    const extrasTime = extrasSeleccionados.reduce((sum, item) => sum + item.tiempo, 0);
+
+    const subtotal = basePrice + extrasPrice;
+    const iva = Math.round(subtotal * 0.19);
+    const total = subtotal + iva;
+    const totalTime = baseTime + extrasTime;
+
     const handleSelectVehiculo = (e) => {
         const val = e.target.value;
         setSelectedVehiculoId(val);
@@ -103,22 +176,10 @@ export default function CotizarPage() {
         }
     };
 
-    // Calculations
-    const currentOilObj = oilTypes.find((o) => o.id === selectedOil) || oilTypes[1];
-    const basePrice = currentOilObj.price;
-
-    const extrasPrice = additionalServices.reduce((sum, item) => {
-        return extras[item.id] ? sum + item.price : sum;
-    }, 0);
-
-    const totalTime = 30 + additionalServices.reduce((sum, item) => (extras[item.id] ? sum + item.duration : sum), 0);
-
-    const subtotal = basePrice + extrasPrice;
-    const iva = Math.round(subtotal * 0.19);
-    const total = subtotal + iva;
-
     const toggleExtra = (id) => {
-        setExtras((prev) => ({ ...prev, [id]: !prev[id] }));
+        setSelectedExtraIds(prev =>
+            prev.includes(id) ? prev.filter(eId => eId !== id) : [...prev, id]
+        );
     };
 
     const handleStartBooking = () => {
@@ -134,22 +195,20 @@ export default function CotizarPage() {
         setSubmitting(true);
 
         try {
-            // Construir IDs de servicios
             const selectedServiceIds = [
-                selectedOil === 'mineral' ? 1 : selectedOil === 'semisintetico' ? 2 : 3
+                ...(selectedServiceId ? [selectedServiceId] : []),
+                ...selectedExtraIds
             ];
-            additionalServices.forEach(extra => {
-                if (extras[extra.id]) selectedServiceIds.push(extra.serviceId);
-            });
 
             const fechaProgramada = `${fechaReserva}T${horaReserva}:00`;
+            const marcaTexto = selectedBrand ? ` (${selectedBrand})` : '';
+            const detalleAceite = `Reserva Online - Servicio: ${currentServiceObj.nombre || 'Mantenimiento'}${marcaTexto}`;
 
-            // Construir Payload según estado de autenticación
             const payload = isAuthenticated
                 ? {
                     fecha_programada: fechaProgramada,
                     servicio_ids: selectedServiceIds,
-                    observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
+                    observaciones_fallas: detalleAceite,
                     cliente_id: user?.cliente_id || user?.id,
                     vehiculo_id: selectedVehiculoId !== 'nuevo' ? selectedVehiculoId : null,
                     ...(selectedVehiculoId === 'nuevo' && {
@@ -169,13 +228,11 @@ export default function CotizarPage() {
                     modelo: guestData.modelo || 'Estándar',
                     fecha_programada: `${fechaReserva} ${horaReserva}:00`,
                     servicio_ids: selectedServiceIds,
-                    observaciones_fallas: `Reserva Online (${selectedBrand} - ${currentOilObj.name})`,
-                    tipo_aceite: selectedOil,
-                    marca_aceite: selectedBrand,
+                    observaciones_fallas: detalleAceite,
                 };
 
             const apiCall = isAuthenticated
-                ? ordenesAPI.createReservaExpress(payload)
+                ? ordenesAPI.createOrdenCliente(payload)
                 : ordenesAPI.createPublicReserva(payload);
 
             const res = await apiCall;
@@ -189,6 +246,34 @@ export default function CotizarPage() {
         }
     };
 
+    if (loadingCatalogo) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <div className="flex items-center gap-2 text-slate-600 font-medium text-sm">
+                    <Loader2 size={20} className="animate-spin text-slate-900" />
+                    Cargando catálogo de servicios...
+                </div>
+            </div>
+        );
+    }
+
+    if (errorCatalogo) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+                <div className="bg-white p-6 rounded-xl border border-rose-200 text-center max-w-md shadow-xs">
+                    <p className="text-sm text-rose-600 font-semibold mb-2">{errorCatalogo}</p>
+                    <p className="text-xs text-slate-500 mb-4">No se pudo obtener la lista de servicios del backend.</p>
+                    <button
+                        onClick={() => window.location.reload()}
+                        className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-slate-50/50 text-slate-800 pb-16">
             <div className="max-w-5xl mx-auto px-4 pt-6">
@@ -200,90 +285,111 @@ export default function CotizarPage() {
             <main className="max-w-5xl mx-auto px-4 pt-4">
                 <div className="mb-8">
                     <h1 className="text-xl font-bold text-slate-900 tracking-tight">Cotizar Servicio</h1>
-                    <p className="text-slate-500 text-xs mt-0.5">Configura las opciones de mantenimiento para tu vehículo.</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Selecciona los servicios del catálogo para agendar tu atención.</p>
                 </div>
 
                 <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
-                    {/* Opciones */}
                     <div className="space-y-8">
 
-                        {/* 1. Tipo de Aceite */}
+                        {/* 1. Servicio Principal */}
                         <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">1. Tipo de Aceite</h2>
-                            <div className="grid sm:grid-cols-3 gap-3">
-                                {oilTypes.map((oil) => {
-                                    const isSelected = selectedOil === oil.id;
-                                    return (
+                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">1. Servicio Principal</h2>
+                            {serviciosAceite.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">No hay servicios disponibles en el catálogo.</p>
+                            ) : (
+                                <div className="grid sm:grid-cols-3 gap-3">
+                                    {serviciosAceite.map((item) => {
+                                        const isSelected = selectedServiceId === item.id;
+
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedServiceId(item.id);
+                                                    if (item.marca) setSelectedBrand(item.marca);
+                                                }}
+                                                className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${isSelected
+                                                    ? 'bg-white border-slate-900 ring-1 ring-slate-900 shadow-xs'
+                                                    : 'bg-white border-slate-200/80 hover:border-slate-300'
+                                                    }`}
+                                            >
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-xs font-bold text-slate-900">{item.nombre}</span>
+                                                    {isSelected && <Check size={14} className="text-slate-900" />}
+                                                </div>
+                                                <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{item.descripcion || 'Servicio registrado en catálogo'}</p>
+
+                                                <div className="flex items-center gap-1.5 text-[10px] text-blue-700 mb-3">
+                                                    <Droplet size={11} />
+                                                    <span>Categoría: <strong>{item.categoria}</strong></span>
+                                                </div>
+
+                                                <span className="text-sm font-bold text-slate-900">${item.precio.toLocaleString('es-CL')}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+
+                        {/* 2. Marcas desde DB */}
+                        {marcasDisponibles.length > 0 && (
+                            <section className="space-y-3">
+                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Marca Preferida</h2>
+                                <div className="flex flex-wrap gap-2">
+                                    {marcasDisponibles.map((brand) => (
                                         <button
-                                            key={oil.id}
+                                            key={brand}
                                             type="button"
-                                            onClick={() => setSelectedOil(oil.id)}
-                                            className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${isSelected
-                                                ? 'bg-white border-slate-900 ring-1 ring-slate-900 shadow-xs'
-                                                : 'bg-white border-slate-200/80 hover:border-slate-300'
+                                            onClick={() => setSelectedBrand(brand)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${selectedBrand === brand
+                                                ? 'bg-slate-900 text-white border-slate-900'
+                                                : 'bg-white border-slate-200/80 text-slate-600 hover:border-slate-300'
                                                 }`}
                                         >
-                                            <div className="flex justify-between items-center mb-1">
-                                                <span className="text-xs font-bold text-slate-900">{oil.name}</span>
-                                                {isSelected && <Check size={14} className="text-slate-900" />}
-                                            </div>
-                                            <p className="text-[11px] text-slate-500 mb-3">{oil.desc} • {oil.km}</p>
-                                            <span className="text-sm font-bold text-slate-900">${oil.price.toLocaleString('es-CL')}</span>
+                                            {brand}
                                         </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
-                        {/* 2. Marca Preferida */}
-                        <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Marca de Lubricante</h2>
-                            <div className="flex flex-wrap gap-2">
-                                {oilBrands.map((brand) => (
-                                    <button
-                                        key={brand}
-                                        type="button"
-                                        onClick={() => setSelectedBrand(brand)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${selectedBrand === brand
-                                            ? 'bg-slate-900 text-white border-slate-900'
-                                            : 'bg-white border-slate-200/80 text-slate-600 hover:border-slate-300'
-                                            }`}
-                                    >
-                                        {brand}
-                                    </button>
-                                ))}
-                            </div>
-                        </section>
+                        {/* 3. Adicionales desde DB */}
+                        {serviciosAdicionales.length > 0 && (
+                            <section className="space-y-3">
+                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Servicios Adicionales</h2>
+                                <div className="bg-white rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
+                                    {serviciosAdicionales.map((extra) => {
+                                        const checked = selectedExtraIds.includes(extra.id);
 
-                        {/* 3. Servicios Adicionales */}
-                        <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Adicionales Recomendados</h2>
-                            <div className="bg-white rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
-                                {additionalServices.map((extra) => {
-                                    const checked = extras[extra.id];
-                                    return (
-                                        <label
-                                            key={extra.id}
-                                            onClick={() => toggleExtra(extra.id)}
-                                            className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 cursor-pointer transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => { }} // handled by row click
-                                                    className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
-                                                />
-                                                <span className="text-xs font-medium text-slate-800">{extra.label}</span>
-                                            </div>
-                                            <span className="text-xs font-semibold text-slate-900">+${extra.price.toLocaleString('es-CL')}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </section>
+                                        return (
+                                            <label
+                                                key={extra.id}
+                                                onClick={() => toggleExtra(extra.id)}
+                                                className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 cursor-pointer transition-colors"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => { }}
+                                                        className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
+                                                    />
+                                                    <div>
+                                                        <span className="text-xs font-medium text-slate-800 block">{extra.nombre}</span>
+                                                        <span className="text-[10px] text-slate-400">{extra.categoria}</span>
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-semibold text-slate-900">+${extra.precio.toLocaleString('es-CL')}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                        )}
 
-                        {/* 4. Fecha y Hora */}
+                        {/* 4. Agenda */}
                         <section className="space-y-3">
                             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">4. Agenda tu Atención</h2>
                             <div className="grid sm:grid-cols-2 gap-3">
@@ -315,7 +421,7 @@ export default function CotizarPage() {
 
                     </div>
 
-                    {/* Sidebar Resumen */}
+                    {/* Resumen Sidebar */}
                     <aside className="bg-white border border-slate-200/80 rounded-xl p-5 sticky top-6 space-y-4 shadow-xs">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 pb-2 border-b border-slate-100">
                             Resumen
@@ -323,20 +429,17 @@ export default function CotizarPage() {
 
                         <div className="space-y-2 text-xs">
                             <div className="flex justify-between text-slate-700">
-                                <span>{currentOilObj.name}</span>
+                                <span>{currentServiceObj.nombre || 'Seleccione un servicio'}</span>
                                 <span className="font-semibold text-slate-900">${basePrice.toLocaleString('es-CL')}</span>
                             </div>
-                            <p className="text-[11px] text-slate-400 -mt-1">{selectedBrand}</p>
+                            {selectedBrand && <p className="text-[11px] text-slate-400 -mt-1">Marca: {selectedBrand}</p>}
 
-                            {additionalServices.map(
-                                (extra) =>
-                                    extras[extra.id] && (
-                                        <div key={extra.id} className="flex justify-between text-slate-600 pt-1">
-                                            <span>{extra.label}</span>
-                                            <span className="text-slate-900 font-medium">+${extra.price.toLocaleString('es-CL')}</span>
-                                        </div>
-                                    )
-                            )}
+                            {extrasSeleccionados.map((extra) => (
+                                <div key={extra.id} className="flex justify-between text-slate-600 pt-1">
+                                    <span>{extra.nombre}</span>
+                                    <span className="text-slate-900 font-medium">+${extra.precio.toLocaleString('es-CL')}</span>
+                                </div>
+                            ))}
                         </div>
 
                         <div className="border-t border-slate-100 pt-3 space-y-1.5 text-xs">
@@ -362,7 +465,8 @@ export default function CotizarPage() {
                         <button
                             type="button"
                             onClick={handleStartBooking}
-                            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                            disabled={!selectedServiceId}
+                            className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
                         >
                             <Calendar size={14} /> Reservar Ahora
                         </button>
@@ -370,7 +474,7 @@ export default function CotizarPage() {
                 </div>
             </main>
 
-            {/* MODAL DE DATOS */}
+            {/* Modal de confirmación */}
             {showBookingModal && (
                 <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-xs z-50 flex items-center justify-center p-4">
                     <div className="bg-white border border-slate-200 rounded-xl max-w-sm w-full p-5 space-y-4 relative shadow-lg">
@@ -404,9 +508,7 @@ export default function CotizarPage() {
 
                                 <form onSubmit={handleBookingSubmit} className="space-y-3 text-xs">
                                     {isAuthenticated ? (
-                                        /* VISTA PARA USUARIO AUTENTICADO */
                                         <div className="space-y-3">
-                                            {/* Ficha compacta de usuario */}
                                             <div className="flex items-center gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
                                                 <div className="p-1.5 bg-slate-900 text-white rounded-md">
                                                     <User size={14} />
@@ -419,7 +521,6 @@ export default function CotizarPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Selección de Vehículo */}
                                             {misVehiculos.length > 0 && (
                                                 <div>
                                                     <label className="block text-[11px] font-medium text-slate-500 mb-1">
@@ -440,7 +541,6 @@ export default function CotizarPage() {
                                                 </div>
                                             )}
 
-                                            {/* Si selecciona 'nuevo' o no tiene vehículos previos */}
                                             {(selectedVehiculoId === 'nuevo' || misVehiculos.length === 0) && (
                                                 <div className="space-y-2">
                                                     <div>
@@ -491,7 +591,6 @@ export default function CotizarPage() {
                                             )}
                                         </div>
                                     ) : (
-                                        /* VISTA PARA INVITADO / NO AUTENTICADO */
                                         <div className="space-y-2.5">
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input
@@ -540,31 +639,51 @@ export default function CotizarPage() {
                                                 className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                                             />
 
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    placeholder="Patente"
-                                                    value={guestData.patente}
-                                                    onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    placeholder="Marca"
-                                                    value={guestData.marca}
-                                                    onChange={(e) => setGuestData((p) => ({ ...p, marca: e.target.value }))}
-                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                                />
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    placeholder="Modelo"
-                                                    value={guestData.modelo}
-                                                    onChange={(e) => setGuestData((p) => ({ ...p, modelo: e.target.value }))}
-                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                                />
+                                            <div className="space-y-2 pt-1 border-t border-slate-100">
+                                                <div>
+                                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                        Patente del Vehículo
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Patente (ej: AB1234)"
+                                                            value={guestData.patente}
+                                                            onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 pl-8 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
+                                                        />
+                                                        <Car size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                            Marca
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Toyota"
+                                                            value={guestData.marca}
+                                                            onChange={(e) => setGuestData((p) => ({ ...p, marca: e.target.value }))}
+                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                                            Modelo
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Yaris"
+                                                            value={guestData.modelo}
+                                                            onChange={(e) => setGuestData((p) => ({ ...p, modelo: e.target.value }))}
+                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -572,21 +691,21 @@ export default function CotizarPage() {
                                     <button
                                         type="submit"
                                         disabled={submitting}
-                                        className="w-full mt-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-all text-xs cursor-pointer disabled:opacity-70"
+                                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-all text-xs flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
                                     >
-                                        {submitting ? 'Confirmando...' : 'Finalizar Reserva'}
+                                        {submitting ? 'Procesando...' : 'Confirmar y Agendar'}
                                     </button>
                                 </form>
                             </>
                         ) : (
                             <div className="text-center py-4 space-y-3">
-                                <div className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center mx-auto">
-                                    <Check size={18} />
+                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                                    <Check size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-bold text-slate-900">¡Reserva Registrada!</h3>
+                                    <h3 className="text-base font-bold text-slate-900">¡Reserva Confirmada!</h3>
                                     <p className="text-xs text-slate-500 mt-1">
-                                        N° Orden: <strong>#{createdOrderId}</strong> • Patente: <strong>{guestData.patente}</strong>
+                                        Tu orden N° <strong>{createdOrderId}</strong> ha sido agendada exitosamente.
                                     </p>
                                 </div>
                                 <button
@@ -594,11 +713,11 @@ export default function CotizarPage() {
                                     onClick={() => {
                                         setShowBookingModal(false);
                                         setBookingSuccess(false);
-                                        if (isAuthenticated) navigate('/dashboard');
+                                        navigate('/');
                                     }}
-                                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer"
+                                    className="w-full bg-slate-900 text-white font-semibold py-2 rounded-lg text-xs cursor-pointer"
                                 >
-                                    {isAuthenticated ? 'Ir a mi Panel' : 'Cerrar'}
+                                    Volver al Inicio
                                 </button>
                             </div>
                         )}
