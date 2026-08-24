@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Package, Clock3, Loader2, Search, Filter, X, ShoppingCart, Pencil, Trash2, Save } from 'lucide-react';
 import { catalogoAPI } from '../services/api';
@@ -134,12 +134,10 @@ export default function CatalogPage() {
 
   const isAdmin = user?.rol === 'administrador';
 
-  const fetchCatalogo = useCallback(async () => {
+  // Función para recargar el catálogo desde botones u otras acciones (editar, eliminar)
+  const fetchCatalogo = async () => {
     try {
       const response = await catalogoAPI.getAll();
-      
-      // Extrae el arreglo sin importar si Axios/Backend devuelve un arreglo directo,
-      // un objeto Axios ({ data: [...] }) o un wrapper ({ data: { data: [...] } })
       const lista = Array.isArray(response)
         ? response
         : Array.isArray(response?.data)
@@ -154,6 +152,42 @@ export default function CatalogPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Efecto de carga inicial aislado del ciclo de renderizado sincrónico
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const response = await catalogoAPI.getAll();
+        const lista = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response?.data?.data)
+              ? response.data.data
+              : [];
+
+        if (isMounted) {
+          setCatalogo(lista);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Error cargando catálogo:', err);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Categorías y marcas únicas
@@ -167,10 +201,11 @@ export default function CatalogPage() {
     return [...set].sort();
   }, [catalogo]);
 
- const filtered = useMemo(() => {
+  // Filtrado defensivo
+  const filtered = useMemo(() => {
     return catalogo.filter((servicio) => {
-      const nombre = servicio.nombre || '';
-      const descripcion = servicio.descripcion || '';
+      const nombre = servicio?.nombre || '';
+      const descripcion = servicio?.descripcion || '';
       
       const matchSearch = !searchTerm ||
         nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -218,7 +253,6 @@ export default function CatalogPage() {
   };
 
   const handleCrearOrden = () => {
-    // Navegar a crear orden pasando los IDs seleccionados como state
     navigate('/ordenes/nueva', { state: { preselectedServiceIds: selectedIds } });
   };
 
