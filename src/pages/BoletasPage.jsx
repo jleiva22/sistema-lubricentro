@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { FileText, Printer, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FileText, Printer, Loader2, Eye } from 'lucide-react';
 import { boletasAPI } from '../services/api';
 
 export default function BoletasPage() {
   const [boletas, setBoletas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     let isMounted = true;
     const fetchBoletas = async () => {
       try {
-        const { data } = await boletasAPI.getAll();
-        if (isMounted && Array.isArray(data)) {
+        const response = await boletasAPI.getAll();
+        const data = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+
+        if (isMounted) {
           setBoletas(data);
         }
       } catch (err) {
@@ -25,6 +32,10 @@ export default function BoletasPage() {
     return () => { isMounted = false; };
   }, []);
 
+  const handleVerBoleta = (boleta) => {
+  navigate(`/boletas/preview?id=${boleta.id}`, { state: { boleta } });
+};
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -33,13 +44,13 @@ export default function BoletasPage() {
           <h1 className="text-3xl font-bold text-slate-900">Boletas emitidas</h1>
         </div>
 
-        <Link
+        {/* <Link
           to="/boletas/preview"
           className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 font-semibold text-white transition hover:bg-brand-700 shadow-md shadow-brand-600/20 text-sm"
         >
           <Printer size={18} />
-          Ver vista de boleta
-        </Link>
+          Ver vista previa general
+        </Link> */}
       </div>
 
       {loading ? (
@@ -60,33 +71,62 @@ export default function BoletasPage() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                <th className="px-4 py-3 font-semibold">N° Orden / Boleta</th>
+                <th className="px-4 py-3 font-semibold">N° Boleta</th>
                 <th className="px-4 py-3 font-semibold">Cliente</th>
                 <th className="px-4 py-3 font-semibold">Vehículo</th>
-                <th className="px-4 py-3 font-semibold">Fecha</th>
+                <th className="px-4 py-3 font-semibold">Fecha Emisión</th>
                 <th className="px-4 py-3 font-semibold">Total</th>
                 <th className="px-4 py-3 font-semibold">Estado</th>
+                <th className="px-4 py-3 font-semibold text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {boletas.map((boleta) => {
-                const clienteStr = boleta.vehiculo?.cliente
-                  ? `${boleta.vehiculo.cliente.nombre} ${boleta.vehiculo.cliente.apellido || ''}`
-                  : (boleta.cliente || 'Cliente General');
-                const fechaStr = boleta.fecha_ingreso ? new Date(boleta.fecha_ingreso).toLocaleDateString('es-CL') : 'Reciente';
-                const pagado = boleta.pagado || boleta.estado === 'pagado' || boleta.estado === 'completado';
+                // Extracción de datos desde boleta.orden.vehiculo
+                const orden = boleta.orden;
+                const vehiculo = orden?.vehiculo || boleta.vehiculo;
+                const cliente = vehiculo?.cliente || orden?.cliente;
+
+                const clienteStr = cliente
+                  ? `${cliente.nombre || ''} ${cliente.apellido || ''}`.trim()
+                  : (boleta.cliente_nombre || 'Cliente General');
+
+                const vehiculoStr = vehiculo
+                  ? `${vehiculo.marca || ''} ${vehiculo.modelo || ''} (${vehiculo.patente || ''})`.trim()
+                  : '-';
+
+                const fechaStr = boleta.fecha_emision
+                  ? new Date(boleta.fecha_emision).toLocaleDateString('es-CL')
+                  : (orden?.fecha_ingreso ? new Date(orden.fecha_ingreso).toLocaleDateString('es-CL') : 'Reciente');
+
+                const pagado = boleta.estado === 'emitida' || boleta.estado === 'pagado' || boleta.estado === 'completado';
 
                 return (
-                  <tr key={boleta.id} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50">
-                    <td className="px-4 py-4 font-bold text-brand-600">#{boleta.id}</td>
+                  <tr key={boleta.id} className="border-b border-slate-100 text-slate-700 hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-4 font-bold text-brand-600">
+                      {boleta.numero_boleta || `#${boleta.id}`}
+                    </td>
                     <td className="px-4 py-4 font-medium text-slate-900">{clienteStr}</td>
-                    <td className="px-4 py-4">{boleta.vehiculo ? `${boleta.vehiculo.marca} (${boleta.vehiculo.patente})` : '-'}</td>
+                    <td className="px-4 py-4 font-medium text-slate-600">{vehiculoStr}</td>
                     <td className="px-4 py-4">{fechaStr}</td>
-                    <td className="px-4 py-4 font-bold text-slate-900">${Number(boleta.total || 0).toLocaleString('es-CL')}</td>
+                    <td className="px-4 py-4 font-bold text-slate-900">
+                      ${Number(boleta.total || 0).toLocaleString('es-CL')}
+                    </td>
                     <td className="px-4 py-4">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold border ${pagado ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                        {pagado ? 'Pagada' : 'Pendiente'}
+                        {pagado ? 'Emitida / Pagada' : 'Pendiente'}
                       </span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleVerBoleta(boleta)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 transition cursor-pointer"
+                        title="Ver / Imprimir Boleta"
+                      >
+                        <Eye size={14} />
+                        Ver Boleta
+                      </button>
                     </td>
                   </tr>
                 );
@@ -122,4 +162,3 @@ export default function BoletasPage() {
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, BadgeDollarSign, Loader2, Search, X, Droplet } from 'lucide-react';
+import { ArrowLeft, BadgeDollarSign, Loader2, Search, X, Droplet, Wrench } from 'lucide-react';
 import { clientesAPI, vehiculosAPI, catalogoAPI, ordenesAPI } from '../services/api';
 import { useAuth } from '../context/useAuth';
 
@@ -17,7 +17,6 @@ export default function NuevaOrdenPage() {
   const [servicioSearch, setServicioSearch] = useState('');
 
   const isCliente = user?.rol === 'cliente';
-
   const preselectedIds = location.state?.preselectedServiceIds || [];
 
   const [form, setForm] = useState({
@@ -29,6 +28,7 @@ export default function NuevaOrdenPage() {
     selectedServiceIds: preselectedIds,
   });
 
+  // Carga de datos iniciales
   useEffect(() => {
     let isMounted = true;
     const fetchAllData = async () => {
@@ -57,7 +57,7 @@ export default function NuevaOrdenPage() {
           }));
         }
       } catch (err) {
-        console.error('Error fetching dynamic order form data:', err);
+        console.error('Error cargando datos para la orden:', err);
       } finally {
         if (isMounted) setLoadingData(false);
       }
@@ -67,6 +67,7 @@ export default function NuevaOrdenPage() {
     return () => { isMounted = false; };
   }, [isCliente]);
 
+  // Filtrado de vehículos según cliente seleccionado
   const vehiculosFiltrados = useMemo(() => {
     if (isCliente) return allVehiculos;
     if (!form.clienteId) return allVehiculos;
@@ -80,27 +81,66 @@ export default function NuevaOrdenPage() {
   const cliente = clientes.find((item) => String(item.id) === String(form.clienteId)) || clientes[0];
   const vehiculo = allVehiculos.find((item) => String(item.id) === String(form.vehiculoId)) || vehiculosFiltrados[0];
 
+  // Clasificación de Servicios: Principales (Aceites/Lubricantes) vs Adicionales
+  const serviciosPrincipales = useMemo(() => {
+    return catalogo.filter((s) => {
+      const cat = (s.categoria || '').toLowerCase();
+      const nom = (s.nombre || '').toLowerCase();
+      return cat.includes('aceite') || cat.includes('lubricant') || nom.includes('aceite') || nom.includes('lubricat');
+    });
+  }, [catalogo]);
+
+  const serviciosAdicionales = useMemo(() => {
+    const q = servicioSearch.toLowerCase();
+    return catalogo.filter((s) => {
+      const cat = (s.categoria || '').toLowerCase();
+      const nom = (s.nombre || '').toLowerCase();
+      const esPrincipal = cat.includes('aceite') || cat.includes('lubricant') || nom.includes('aceite') || nom.includes('lubricat');
+
+      if (esPrincipal) return false;
+      if (!servicioSearch) return true;
+
+      return (
+        nom.includes(q) ||
+        (s.descripcion || '').toLowerCase().includes(q) ||
+        cat.includes(q)
+      );
+    });
+  }, [catalogo, servicioSearch]);
+
   const serviciosSeleccionados = useMemo(
     () => catalogo.filter((servicio) => form.selectedServiceIds.includes(servicio.id)),
     [catalogo, form.selectedServiceIds]
   );
 
-  const serviciosFiltrados = useMemo(() => {
-    if (!servicioSearch) return catalogo;
-    const q = servicioSearch.toLowerCase();
-    return catalogo.filter(s =>
-      s.nombre.toLowerCase().includes(q) ||
-      (s.descripcion || '').toLowerCase().includes(q) ||
-      (s.categoria || '').toLowerCase().includes(q)
-    );
-  }, [catalogo, servicioSearch]);
-
+  // Totales acumulados
   const subtotal = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.precio_unitario ?? servicio.precio_base ?? 0), 0);
   const iva = form.incluirIva ? subtotal * 0.19 : 0;
   const total = subtotal + iva;
   const tiempoEstimado = serviciosSeleccionados.reduce((sum, servicio) => sum + Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30), 0);
 
-  const toggleServicio = (id) => {
+  // SELECCIÓN EXCLUSIVA (Solo 1 Servicio Principal de Cambio de Aceite)
+  const handleSelectPrincipal = (id) => {
+    setForm((prev) => {
+      const principalIds = serviciosPrincipales.map((s) => s.id);
+      // Mantener los adicionales previamente seleccionados
+      const adicionalesSeleccionados = prev.selectedServiceIds.filter(
+        (selectedId) => !principalIds.includes(selectedId)
+      );
+
+      const yaEstabaSeleccionado = prev.selectedServiceIds.includes(id);
+
+      return {
+        ...prev,
+        selectedServiceIds: yaEstabaSeleccionado
+          ? adicionalesSeleccionados // Permite desmarcarlo si vuelve a hacer clic
+          : [...adicionalesSeleccionados, id], // Reemplaza el aceite anterior por el nuevo
+      };
+    });
+  };
+
+  // SELECCIÓN MÚLTIPLE (Servicios Adicionales)
+  const toggleServicioAdicional = (id) => {
     setForm((prev) => {
       const exists = prev.selectedServiceIds.includes(id);
       return {
@@ -261,67 +301,88 @@ export default function NuevaOrdenPage() {
             </div>
           </div>
 
-          {/* Información del Aceite (Visual / Informativo) */}
-          {/* Información del Aceite (Visual / Informativo) */}
+          {/* Bloque 1: Servicio Principal - Cambio de Aceite (SELECCIÓN ÚNICA) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <h2 className="mb-2 text-lg font-bold text-slate-900">Especificaciones del lubricante</h2>
-            <p className="text-xs text-slate-500 mb-4">
-              El tipo, marca y categoría del lubricante quedan asignados según los servicios seleccionados en el catálogo.
-            </p>
-
-            {serviciosSeleccionados.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {serviciosSeleccionados.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex flex-col gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs"
-                  >
-                    <div className="flex items-center gap-2 font-bold text-blue-950 text-sm">
-                      <Droplet size={16} className="text-blue-600 shrink-0" />
-                      <span>{s.nombre}</span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
-                      <span className="rounded-md bg-white border border-blue-200 px-2 py-0.5 font-semibold text-slate-700">
-                        Categoría: <strong className="text-blue-700">{s.categoria || 'Lubricantes'}</strong>
-                      </span>
-                      <span className="rounded-md bg-white border border-blue-200 px-2 py-0.5 font-semibold text-slate-700">
-                        Marca: <strong className="text-blue-700">{s.marca || 'Multimarca'}</strong>
-                      </span>
-                    </div>
-                  </div>
-                ))}
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Droplet size={20} className="text-brand-600" />
+                  1. Servicio Principal (Cambio de Aceite)
+                </h2>
+                <p className="text-xs text-slate-500">Selecciona el lubricante principal (Solo puedes elegir 1)</p>
               </div>
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
-                Selecciona al menos un servicio del catálogo más abajo para visualizar su marca y categoría.
-              </div>
-            )}
+              <span className="rounded-full bg-brand-50 px-2.5 py-1 text-[11px] font-bold text-brand-700 border border-brand-200">
+                Selecciona 1
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {serviciosPrincipales.length === 0 ? (
+                <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+                  No se encontraron servicios de cambio de aceite en el catálogo.
+                </div>
+              ) : (
+                serviciosPrincipales.map((servicio) => {
+                  const checked = form.selectedServiceIds.includes(servicio.id);
+                  const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
+                  const tiempo = Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30);
+
+                  return (
+                    <button
+                      key={servicio.id}
+                      type="button"
+                      onClick={() => handleSelectPrincipal(servicio.id)}
+                      className={`flex flex-col justify-between rounded-xl border p-4 text-left transition cursor-pointer ${
+                        checked
+                          ? 'border-brand-500 bg-brand-50/80 text-slate-900 ring-2 ring-brand-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-brand-600 tracking-wider">
+                            {servicio.marca || 'Aceite Motor'}
+                          </span>
+                          <h3 className="font-bold text-sm text-slate-900 mt-0.5">{servicio.nombre}</h3>
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-2">{servicio.descripcion}</p>
+                        </div>
+                        {/* Radio visual para indicar opción única */}
+                        <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
+                          {checked ? '✓' : ''}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between border-t border-slate-200/80 pt-2.5 text-xs">
+                        <span className="text-slate-500 font-medium">{tiempo} min</span>
+                        <span className="font-bold text-slate-900 text-sm">${precio.toLocaleString('es-CL')}</span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
 
-          {/* Diagnóstico y servicios */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">Diagnóstico y servicios</h2>
+          {/* Bloque 2: Servicios Adicionales & Revisiones (SELECCIÓN MÚLTIPLE) */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Wrench size={20} className="text-slate-700" />
+                  2. Servicios Adicionales & Revisiones
+                </h2>
+                <p className="text-xs text-slate-500">Agrega revisiones opcionales (Puedes seleccionar varias)</p>
+              </div>
+            </div>
 
-            <label className="mb-5 block space-y-1.5 text-sm font-semibold text-slate-700">
-              <span>Fallas detectadas / observaciones</span>
-              <textarea
-                rows="3"
-                value={form.diagnostico}
-                onChange={(e) => setForm((prev) => ({ ...prev, diagnostico: e.target.value }))}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal placeholder:text-slate-400 focus:border-brand-600 focus:outline-none text-xs"
-                placeholder="Ej: Motor con ruido leve, requiere cambio de aceite y revisión de filtros."
-              />
-            </label>
-
-            {/* Buscador de servicios */}
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500">
+            {/* Buscador de adicionales */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500">
               <Search size={16} />
               <input
                 type="text"
                 value={servicioSearch}
                 onChange={(e) => setServicioSearch(e.target.value)}
-                placeholder="Buscar servicio por nombre..."
+                placeholder="Buscar revisión, neumáticos, sapito..."
                 className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               {servicioSearch && (
@@ -331,37 +392,41 @@ export default function NuevaOrdenPage() {
               )}
             </div>
 
-            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-              {serviciosFiltrados.length === 0 ? (
-                <p className="text-xs text-slate-500 py-4 text-center">
-                  {servicioSearch ? 'No se encontraron servicios con esa búsqueda.' : 'No hay servicios en el catálogo.'}
+            <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
+              {serviciosAdicionales.length === 0 ? (
+                <p className="text-xs text-slate-500 py-6 text-center">
+                  {servicioSearch ? 'No se encontraron servicios adicionales con esa búsqueda.' : 'No hay servicios adicionales configurados.'}
                 </p>
               ) : (
-                serviciosFiltrados.map((servicio) => {
+                serviciosAdicionales.map((servicio) => {
                   const checked = form.selectedServiceIds.includes(servicio.id);
                   const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
-                  const tiempo = Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 30);
+                  const tiempo = Number(servicio.tiempo_minutos ?? servicio.duracion_estimada ?? 15);
 
                   return (
                     <button
                       key={servicio.id}
                       type="button"
-                      onClick={() => toggleServicio(servicio.id)}
-                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${checked
-                        ? 'border-brand-500 bg-brand-50/80 text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                        }`}
+                      onClick={() => toggleServicioAdicional(servicio.id)}
+                      className={`flex w-full items-center justify-between gap-4 rounded-xl border px-4 py-3 text-left transition cursor-pointer ${
+                        checked
+                          ? 'border-brand-500 bg-brand-50/80 text-slate-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
+                      }`}
                     >
-                      <div>
-                        <div className="font-bold text-sm text-slate-900">{servicio.nombre}</div>
-                        <div className="mt-0.5 text-xs text-slate-500">{servicio.descripcion}</div>
-                      </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-[10px] text-slate-500 font-medium">{tiempo} min</span>
-                        <span className="font-bold text-brand-600 text-sm">${precio.toLocaleString('es-CL')}</span>
-                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
+                        <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${checked ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white'}`}>
                           {checked ? '✓' : ''}
                         </span>
+                        <div>
+                          <div className="font-bold text-xs text-slate-900">{servicio.nombre}</div>
+                          <div className="text-[11px] text-slate-500 line-clamp-1">{servicio.descripcion || 'Revisión complementaria'}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[10px] text-slate-500 font-medium">{tiempo} min</span>
+                        <span className="font-bold text-slate-900 text-xs">${precio.toLocaleString('es-CL')}</span>
                       </div>
                     </button>
                   );
@@ -369,22 +434,45 @@ export default function NuevaOrdenPage() {
               )}
             </div>
           </div>
+
+          {/* Diagnóstico u Observaciones */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <h2 className="mb-2 text-lg font-bold text-slate-900">Observaciones técnicas</h2>
+            <label className="block space-y-1.5 text-sm font-semibold text-slate-700">
+              <span className="text-xs text-slate-500 font-normal">Indica ruidos, fallas reportadas por el cliente o sugerencias de revisión</span>
+              <textarea
+                rows="3"
+                value={form.diagnostico}
+                onChange={(e) => setForm((prev) => ({ ...prev, diagnostico: e.target.value }))}
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-900 font-normal placeholder:text-slate-400 focus:border-brand-600 focus:outline-none text-xs"
+                placeholder="Ej: Revisar presión de neumáticos, nivel de agua del sapito y solicitar alineación si corresponde."
+              />
+            </label>
+          </div>
         </div>
 
-        {/* Side panel — Resumen */}
+        {/* Panel Lateral — Resumen de la Orden */}
         <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <h2 className="mb-4 text-lg font-bold text-slate-900">Resumen</h2>
+            <h2 className="mb-4 text-lg font-bold text-slate-900">Resumen del servicio</h2>
 
-            <div className="space-y-3 text-sm text-slate-700">
+            <div className="space-y-3 text-sm text-slate-700 max-h-[300px] overflow-y-auto pr-1">
               {serviciosSeleccionados.length === 0 ? (
-                <p className="text-xs text-slate-500">Aún no has seleccionado servicios.</p>
+                <p className="text-xs text-slate-500">Selecciona al menos un servicio.</p>
               ) : (
                 serviciosSeleccionados.map((servicio) => {
                   const precio = Number(servicio.precio_unitario ?? servicio.precio_base ?? 0);
+                  const esPrincipal = serviciosPrincipales.some((s) => s.id === servicio.id);
+
                   return (
-                    <div key={servicio.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 border border-slate-200">
-                      <span className="text-xs font-medium text-slate-700">{servicio.nombre}</span>
+                    <div key={servicio.id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 border border-slate-200">
+                      <div>
+                        <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          {esPrincipal && <span className="h-1.5 w-1.5 rounded-full bg-brand-600 shrink-0"></span>}
+                          {servicio.nombre}
+                        </div>
+                        <span className="text-[10px] text-slate-500">{esPrincipal ? 'Servicio Principal' : 'Adicional'}</span>
+                      </div>
                       <span className="font-bold text-brand-600 text-xs">${precio.toLocaleString('es-CL')}</span>
                     </div>
                   );
@@ -394,15 +482,15 @@ export default function NuevaOrdenPage() {
 
             <div className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm text-slate-700">
               <div className="flex items-center justify-between">
-                <span>Subtotal</span>
+                <span>Subtotal Neto</span>
                 <span className="font-semibold">${subtotal.toLocaleString('es-CL')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>IVA (19%)</span>
                 <span className="font-semibold">${Math.round(iva).toLocaleString('es-CL')}</span>
               </div>
-              <div className="flex items-center justify-between text-base font-bold text-slate-900">
-                <span>Total</span>
+              <div className="flex items-center justify-between text-base font-bold text-slate-900 pt-1 border-t border-slate-100">
+                <span>Total Estimado</span>
                 <span className="text-brand-600">${Math.round(total).toLocaleString('es-CL')}</span>
               </div>
             </div>

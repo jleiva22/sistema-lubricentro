@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { ordenesAPI, vehiculosAPI, catalogoAPI } from '../services/api';
-import { Clock, Calendar, Check, X, ArrowLeft, Car, User, Loader2, Droplet, Tag } from 'lucide-react';
+import { Clock, Calendar, Check, X, ArrowLeft, Car, User, Loader2, Droplet, Tag, Wrench, CheckCircle } from 'lucide-react';
 
 export default function CotizarPage() {
     const { user, isAuthenticated } = useAuth();
@@ -13,7 +13,7 @@ export default function CotizarPage() {
     const [loadingCatalogo, setLoadingCatalogo] = useState(true);
     const [errorCatalogo, setErrorCatalogo] = useState(null);
 
-    // Estado de Selecciones
+    // Estado de Selecciones (1 Servicio Principal + Múltiples Adicionales)
     const [selectedServiceId, setSelectedServiceId] = useState(null);
     const [selectedExtraIds, setSelectedExtraIds] = useState([]);
 
@@ -70,13 +70,13 @@ export default function CotizarPage() {
                 setCatalogo(normalizedList);
 
                 if (normalizedList.length > 0) {
-                    const defaultService = normalizedList.find(s =>
-                        s.nombre.toLowerCase().includes('aceite') ||
-                        s.categoria.toLowerCase().includes('aceite') ||
-                        s.categoria.toLowerCase().includes('lubricat')
-                    ) || normalizedList[0];
+                    const defaultService = normalizedList.find(s => {
+                        const cat = (s.categoria || '').toLowerCase();
+                        const nom = (s.nombre || '').toLowerCase();
+                        return cat.includes('aceite') || cat.includes('lubricant') || nom.includes('aceite') || nom.includes('lubricat');
+                    }) || normalizedList[0];
 
-                    setSelectedServiceId(defaultService.id);
+                    setSelectedServiceId(defaultService?.id || null);
                 }
             })
             .catch(err => {
@@ -121,25 +121,25 @@ export default function CotizarPage() {
         }
     }, [user]);
 
-    // Filtrar servicios
-    const serviciosAceite = useMemo(() => {
-        const list = catalogo.filter(s =>
-            s.nombre.toLowerCase().includes('aceite') ||
-            s.categoria.toLowerCase().includes('aceite') ||
-            s.categoria.toLowerCase().includes('lubricat')
-        );
-        return list.length > 0 ? list : catalogo;
+    // Clasificación de Servicios: Principales (Aceite / Lubricantes) vs Adicionales
+    const serviciosPrincipales = useMemo(() => {
+        return catalogo.filter(s => {
+            const cat = (s.categoria || '').toLowerCase();
+            const nom = (s.nombre || '').toLowerCase();
+            return cat.includes('aceite') || cat.includes('lubricant') || nom.includes('aceite') || nom.includes('lubricat');
+        });
     }, [catalogo]);
 
     const serviciosAdicionales = useMemo(() => {
-        return catalogo.filter(s => !serviciosAceite.some(a => a.id === s.id));
-    }, [catalogo, serviciosAceite]);
+        return catalogo.filter(s => !serviciosPrincipales.some(p => p.id === s.id));
+    }, [catalogo, serviciosPrincipales]);
 
-    // Servicio actual seleccionado
-    const currentServiceObj = catalogo.find(s => s.id === selectedServiceId) || serviciosAceite[0] || {};
+    // Servicio Principal seleccionado actualmente
+    const currentServiceObj = catalogo.find(s => s.id === selectedServiceId) || {};
     const basePrice = currentServiceObj.precio || 0;
-    const baseTime = currentServiceObj.tiempo || 30;
+    const baseTime = currentServiceObj.tiempo || 0;
 
+    // Servicios Adicionales seleccionados
     const extrasSeleccionados = useMemo(() => {
         return catalogo.filter(s => selectedExtraIds.includes(s.id));
     }, [catalogo, selectedExtraIds]);
@@ -147,6 +147,7 @@ export default function CotizarPage() {
     const extrasPrice = extrasSeleccionados.reduce((sum, item) => sum + item.precio, 0);
     const extrasTime = extrasSeleccionados.reduce((sum, item) => sum + item.tiempo, 0);
 
+    // Totales
     const subtotal = basePrice + extrasPrice;
     const iva = Math.round(subtotal * 0.19);
     const total = subtotal + iva;
@@ -166,6 +167,12 @@ export default function CotizarPage() {
         }
     };
 
+    // Selección de Servicio Principal (OPCIÓN ÚNICA)
+    const handleSelectPrincipal = (id) => {
+        setSelectedServiceId(prev => prev === id ? null : id);
+    };
+
+    // Selección de Servicios Adicionales (OPCIÓN MÚLTIPLE)
     const toggleExtra = (id) => {
         setSelectedExtraIds(prev =>
             prev.includes(id) ? prev.filter(eId => eId !== id) : [...prev, id]
@@ -173,6 +180,11 @@ export default function CotizarPage() {
     };
 
     const handleStartBooking = () => {
+        if (!selectedServiceId && selectedExtraIds.length === 0) {
+            alert('Debes seleccionar al menos un servicio para continuar.');
+            return;
+        }
+
         if (user && (user.rol === 'administrador' || user.rol === 'mecanico')) {
             navigate('/ordenes/nueva');
         } else {
@@ -192,7 +204,7 @@ export default function CotizarPage() {
 
             const fechaProgramada = `${fechaReserva}T${horaReserva}:00`;
             const marcaTexto = currentServiceObj.marca ? ` (${currentServiceObj.marca})` : '';
-            const detalleServicio = `Reserva Online - Servicio: ${currentServiceObj.nombre || 'Mantenimiento'}${marcaTexto}`;
+            const detalleServicio = `Reserva Online - Servicio: ${currentServiceObj.nombre || 'Mantenimiento General'}${marcaTexto}`;
 
             const payload = isAuthenticated
                 ? {
@@ -274,52 +286,63 @@ export default function CotizarPage() {
             <main className="max-w-5xl mx-auto px-4 pt-4">
                 <div className="mb-8">
                     <h1 className="text-xl font-bold text-slate-900 tracking-tight">Cotizar Servicio</h1>
-                    <p className="text-slate-500 text-xs mt-0.5">Selecciona el servicio que deseas agendar.</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Selecciona tu cambio de aceite y agrega las revisiones adicionales que desees.</p>
                 </div>
 
                 <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
                     <div className="space-y-8">
 
-                        {/* 1. Selección de Servicio Principal */}
+                        {/* 1. SELECCIÓN DE SERVICIO PRINCIPAL (SOLO 1) */}
                         <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">1. Servicios Disponibles</h2>
-                            {serviciosAceite.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">No hay servicios registrados.</p>
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                    <Droplet size={15} className="text-blue-600" />
+                                    1. Servicio Principal (Cambio de Aceite)
+                                </h2>
+                                <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                                    Selecciona 1
+                                </span>
+                            </div>
+
+                            {serviciosPrincipales.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">No hay servicios de cambio de aceite disponibles.</p>
                             ) : (
-                                <div className="grid sm:grid-cols-3 gap-3">
-                                    {serviciosAceite.map((item) => {
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {serviciosPrincipales.map((item) => {
                                         const isSelected = selectedServiceId === item.id;
 
                                         return (
                                             <button
                                                 key={item.id}
                                                 type="button"
-                                                onClick={() => setSelectedServiceId(item.id)}
-                                                className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${isSelected
-                                                    ? 'bg-white border-slate-900 ring-1 ring-slate-900 shadow-xs'
-                                                    : 'bg-white border-slate-200/80 hover:border-slate-300'
+                                                onClick={() => handleSelectPrincipal(item.id)}
+                                                className={`p-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${isSelected
+                                                    ? 'bg-white border-blue-600 ring-2 ring-blue-600/20 shadow-xs'
+                                                    : 'bg-white border-slate-200 hover:border-slate-300'
                                                     }`}
                                             >
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-xs font-bold text-slate-900">{item.nombre}</span>
-                                                    {isSelected && <Check size={14} className="text-slate-900" />}
-                                                </div>
-                                                <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{item.descripcion || 'Servicio registrado en catálogo'}</p>
-
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <div className="flex items-center gap-1 text-[10px] text-blue-700">
-                                                        <Droplet size={11} />
-                                                        <span>{item.categoria}</span>
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-1 gap-2">
+                                                        <span className="text-xs font-bold text-slate-900 line-clamp-1">{item.nombre}</span>
+                                                        <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${isSelected ? 'bg-blue-600 text-white' : 'border border-slate-300 text-transparent'}`}>
+                                                            ✓
+                                                        </span>
                                                     </div>
-                                                    {item.marca && (
-                                                        <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">
-                                                            <Tag size={10} />
-                                                            <span>{item.marca}</span>
-                                                        </div>
-                                                    )}
+                                                    <p className="text-[11px] text-slate-500 mb-3 line-clamp-2">{item.descripcion || 'Cambio de aceite de motor y filtro.'}</p>
                                                 </div>
 
-                                                <span className="text-sm font-bold text-slate-900">${item.precio.toLocaleString('es-CL')}</span>
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        {item.marca && (
+                                                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-bold">
+                                                                <Tag size={10} />
+                                                                {item.marca}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-[10px] text-slate-400 font-medium">{item.tiempo} min</span>
+                                                    </div>
+                                                    <span className="text-sm font-bold text-slate-900">${item.precio.toLocaleString('es-CL')}</span>
+                                                </div>
                                             </button>
                                         );
                                     })}
@@ -327,59 +350,75 @@ export default function CotizarPage() {
                             )}
                         </section>
 
-                        {/* 2. Adicionales */}
-                        {serviciosAdicionales.length > 0 && (
-                            <section className="space-y-3">
-                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Servicios Adicionales</h2>
-                                <div className="bg-white rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
+                        {/* 2. SELECCIÓN DE SERVICIOS ADICIONALES (MÚLTIPLES) */}
+                        <section className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                    <Wrench size={15} className="text-slate-700" />
+                                    2. Servicios Adicionales & Revisiones
+                                </h2>
+                                <span className="text-[10px] bg-slate-100 text-slate-600 font-medium px-2 py-0.5 rounded-full">
+                                    Opcionales (Múltiples)
+                                </span>
+                            </div>
+
+                            {serviciosAdicionales.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">No hay servicios adicionales disponibles.</p>
+                            ) : (
+                                <div className="bg-white rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden shadow-xs">
                                     {serviciosAdicionales.map((extra) => {
                                         const checked = selectedExtraIds.includes(extra.id);
 
                                         return (
-                                            <label
+                                            <button
                                                 key={extra.id}
+                                                type="button"
                                                 onClick={() => toggleExtra(extra.id)}
-                                                className="flex items-center justify-between p-3.5 hover:bg-slate-50/50 cursor-pointer transition-colors"
+                                                className={`w-full flex items-center justify-between p-3.5 text-left transition-colors cursor-pointer ${
+                                                    checked ? 'bg-blue-50/50' : 'hover:bg-slate-50/60'
+                                                }`}
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={checked}
-                                                        onChange={() => { }}
-                                                        className="w-4 h-4 rounded border-slate-300 text-slate-900 focus:ring-0 cursor-pointer"
-                                                    />
+                                                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] font-bold ${
+                                                        checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white'
+                                                    }`}>
+                                                        {checked ? '✓' : ''}
+                                                    </span>
                                                     <div>
-                                                        <span className="text-xs font-medium text-slate-800 block">{extra.nombre}</span>
-                                                        <span className="text-[10px] text-slate-400">{extra.categoria}</span>
+                                                        <span className="text-xs font-bold text-slate-800 block">{extra.nombre}</span>
+                                                        <span className="text-[10px] text-slate-400">{extra.descripcion || extra.categoria}</span>
                                                     </div>
                                                 </div>
-                                                <span className="text-xs font-semibold text-slate-900">+${extra.precio.toLocaleString('es-CL')}</span>
-                                            </label>
+                                                <div className="flex items-center gap-3 shrink-0">
+                                                    <span className="text-[10px] text-slate-400 font-medium">{extra.tiempo} min</span>
+                                                    <span className="text-xs font-bold text-slate-900">+${extra.precio.toLocaleString('es-CL')}</span>
+                                                </div>
+                                            </button>
                                         );
                                     })}
                                 </div>
-                            </section>
-                        )}
+                            )}
+                        </section>
 
-                        {/* 3. Agenda */}
+                        {/* 3. AGENDA DE ATENCIÓN */}
                         <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Agenda tu Atención</h2>
-                            <div className="grid sm:grid-cols-2 gap-3">
+                            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">3. Agenda tu Atención</h2>
+                            <div className="grid sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
                                 <div>
-                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Fecha</label>
+                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Fecha de Atención</label>
                                     <input
                                         type="date"
                                         value={fechaReserva}
                                         onChange={(e) => setFechaReserva(e.target.value)}
-                                        className="w-full bg-white border border-slate-200/80 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-900 transition-colors"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-900 transition-colors"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">Hora</label>
+                                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hora Estimada</label>
                                     <select
                                         value={horaReserva}
                                         onChange={(e) => setHoraReserva(e.target.value)}
-                                        className="w-full bg-white border border-slate-200/80 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-900 transition-colors"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-slate-900 transition-colors"
                                     >
                                         <option value="09:00">09:00 hrs</option>
                                         <option value="10:00">10:00 hrs</option>
@@ -393,67 +432,74 @@ export default function CotizarPage() {
 
                     </div>
 
-                    {/* Resumen Sidebar */}
+                    {/* RESUMEN SIDEBAR */}
                     <aside className="bg-white border border-slate-200/80 rounded-xl p-5 sticky top-6 space-y-4 shadow-xs">
                         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 pb-2 border-b border-slate-100">
-                            Resumen
+                            Resumen de Cotización
                         </h3>
 
                         <div className="space-y-2 text-xs">
-                            <div className="flex justify-between text-slate-700">
-                                <span>{currentServiceObj.nombre || 'Seleccione un servicio'}</span>
-                                <span className="font-semibold text-slate-900">${basePrice.toLocaleString('es-CL')}</span>
-                            </div>
-                            {currentServiceObj.marca && (
-                                <p className="text-[11px] text-slate-400 -mt-1 flex items-center gap-1">
-                                    <Tag size={10} /> Marca: <strong className="text-slate-600">{currentServiceObj.marca}</strong>
-                                </p>
+                            {/* Servicio Principal */}
+                            {currentServiceObj.id ? (
+                                <div className="space-y-1">
+                                    <div className="flex justify-between font-bold text-slate-800">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-blue-600"></span>
+                                            {currentServiceObj.nombre}
+                                        </span>
+                                        <span>${basePrice.toLocaleString('es-CL')}</span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 block pl-3">Servicio Principal</span>
+                                </div>
+                            ) : (
+                                <p className="text-[11px] text-slate-400 italic">No has seleccionado cambio de aceite.</p>
                             )}
 
+                            {/* Adicionales */}
                             {extrasSeleccionados.map((extra) => (
-                                <div key={extra.id} className="flex justify-between text-slate-600 pt-1">
-                                    <span>{extra.nombre}</span>
-                                    <span className="text-slate-900 font-medium">+${extra.precio.toLocaleString('es-CL')}</span>
+                                <div key={extra.id} className="flex justify-between text-slate-600 pt-1.5 border-t border-slate-50">
+                                    <span className="text-[11px] font-medium text-slate-700">{extra.nombre}</span>
+                                    <span className="text-slate-900 font-semibold text-[11px]">+${extra.precio.toLocaleString('es-CL')}</span>
                                 </div>
                             ))}
                         </div>
 
                         <div className="border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                            <div className="flex justify-between text-slate-400">
-                                <span>Subtotal</span>
-                                <span>${subtotal.toLocaleString('es-CL')}</span>
+                            <div className="flex justify-between text-slate-500">
+                                <span>Subtotal Neto</span>
+                                <span className="font-semibold text-slate-700">${subtotal.toLocaleString('es-CL')}</span>
                             </div>
-                            <div className="flex justify-between text-slate-400">
+                            <div className="flex justify-between text-slate-500">
                                 <span>IVA (19%)</span>
-                                <span>${iva.toLocaleString('es-CL')}</span>
+                                <span className="font-semibold text-slate-700">${iva.toLocaleString('es-CL')}</span>
                             </div>
                             <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-100">
                                 <span>Total Estimado</span>
-                                <span>${total.toLocaleString('es-CL')}</span>
+                                <span className="text-blue-600">${total.toLocaleString('es-CL')}</span>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
-                            <Clock size={13} className="text-slate-400" />
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <Clock size={14} className="text-slate-400" />
                             <span>Tiempo estimado: <strong>{totalTime} min</strong></span>
                         </div>
 
                         <button
                             type="button"
                             onClick={handleStartBooking}
-                            disabled={!selectedServiceId}
-                            className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-all text-xs flex items-center justify-center gap-2 cursor-pointer"
+                            disabled={!selectedServiceId && selectedExtraIds.length === 0}
+                            className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                         >
-                            <Calendar size={14} /> Reservar Ahora
+                            <Calendar size={15} /> Reservar Atención
                         </button>
                     </aside>
                 </div>
             </main>
 
-            {/* Modal de confirmación */}
+            {/* MODAL DE CONFIRMACIÓN */}
             {showBookingModal && (
-                <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-                    <div className="bg-white border border-slate-200 rounded-xl max-w-sm w-full p-5 space-y-4 relative shadow-lg">
+                <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+                    <div className="bg-white border border-slate-200 rounded-2xl max-w-sm w-full p-5 space-y-4 relative shadow-xl">
                         <button
                             type="button"
                             onClick={() => setShowBookingModal(false)}
@@ -471,14 +517,14 @@ export default function CotizarPage() {
                                     </p>
                                 </div>
 
-                                <div className="bg-slate-50 p-3 rounded-lg text-xs space-y-1 text-slate-600 border border-slate-100">
+                                <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600 border border-slate-100">
                                     <div className="flex justify-between">
                                         <span>Fecha:</span>
                                         <strong className="text-slate-900">{fechaReserva} - {horaReserva} hrs</strong>
                                     </div>
                                     <div className="flex justify-between">
                                         <span>Total:</span>
-                                        <strong className="text-slate-900">${total.toLocaleString('es-CL')}</strong>
+                                        <strong className="text-blue-600">${total.toLocaleString('es-CL')}</strong>
                                     </div>
                                 </div>
 
@@ -567,7 +613,7 @@ export default function CotizarPage() {
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="space-y-2.5">
+                                        <div className="space-y-2">
                                             <div className="grid grid-cols-2 gap-2">
                                                 <input
                                                     type="text"
@@ -587,15 +633,16 @@ export default function CotizarPage() {
                                                 />
                                             </div>
 
+                                            <input
+                                                type="text"
+                                                required
+                                                placeholder="RUT (12345678-9)"
+                                                value={guestData.rut}
+                                                onChange={(e) => setGuestData((p) => ({ ...p, rut: e.target.value }))}
+                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                            />
+
                                             <div className="grid grid-cols-2 gap-2">
-                                                <input
-                                                    type="text"
-                                                    required
-                                                    placeholder="RUT"
-                                                    value={guestData.rut}
-                                                    onChange={(e) => setGuestData((p) => ({ ...p, rut: e.target.value }))}
-                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                                />
                                                 <input
                                                     type="tel"
                                                     required
@@ -604,59 +651,45 @@ export default function CotizarPage() {
                                                     onChange={(e) => setGuestData((p) => ({ ...p, telefono: e.target.value }))}
                                                     className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                                                 />
+                                                <input
+                                                    type="email"
+                                                    required
+                                                    placeholder="Email"
+                                                    value={guestData.email}
+                                                    onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
+                                                    className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                />
                                             </div>
 
-                                            <input
-                                                type="email"
-                                                required
-                                                placeholder="Correo Electrónico"
-                                                value={guestData.email}
-                                                onChange={(e) => setGuestData((p) => ({ ...p, email: e.target.value }))}
-                                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                                            />
-
-                                            <div className="space-y-2 pt-1 border-t border-slate-100">
-                                                <div>
-                                                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                                                        Patente del Vehículo
-                                                    </label>
-                                                    <div className="relative">
+                                            <div className="pt-1 border-t border-slate-100">
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                                                    Datos del Vehículo
+                                                </label>
+                                                <div className="space-y-2">
+                                                    <input
+                                                        type="text"
+                                                        required
+                                                        placeholder="Patente (ej: AB1234)"
+                                                        value={guestData.patente}
+                                                        onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
+                                                        className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 uppercase focus:outline-none focus:border-slate-900"
+                                                    />
+                                                    <div className="grid grid-cols-2 gap-2">
                                                         <input
                                                             type="text"
                                                             required
-                                                            placeholder="Patente (ej: AB1234)"
-                                                            value={guestData.patente}
-                                                            onChange={(e) => setGuestData((p) => ({ ...p, patente: e.target.value }))}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 pl-8 text-slate-900 focus:outline-none focus:border-slate-900 uppercase"
-                                                        />
-                                                        <Car size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                                                            Marca
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            required
-                                                            placeholder="Toyota"
+                                                            placeholder="Marca"
                                                             value={guestData.marca}
                                                             onChange={(e) => setGuestData((p) => ({ ...p, marca: e.target.value }))}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                                                         />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
-                                                            Modelo
-                                                        </label>
                                                         <input
                                                             type="text"
                                                             required
-                                                            placeholder="Yaris"
+                                                            placeholder="Modelo"
                                                             value={guestData.modelo}
                                                             onChange={(e) => setGuestData((p) => ({ ...p, modelo: e.target.value }))}
-                                                            className="w-full bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                                                            className="bg-white border border-slate-200 rounded-lg p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                                                         />
                                                     </div>
                                                 </div>
@@ -667,33 +700,34 @@ export default function CotizarPage() {
                                     <button
                                         type="submit"
                                         disabled={submitting}
-                                        className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-all text-xs flex items-center justify-center gap-2 cursor-pointer mt-2 disabled:opacity-50"
+                                        className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer mt-3"
                                     >
-                                        {submitting ? 'Procesando...' : 'Confirmar y Agendar'}
+                                        {submitting ? (
+                                            <>
+                                                <Loader2 size={14} className="animate-spin" />
+                                                Procesando...
+                                            </>
+                                        ) : (
+                                            'Confirmar y Reservar'
+                                        )}
                                     </button>
                                 </form>
                             </>
                         ) : (
                             <div className="text-center py-4 space-y-3">
-                                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                                    <Check size={24} />
+                                <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                                    <CheckCircle size={24} />
                                 </div>
-                                <div>
-                                    <h3 className="text-base font-bold text-slate-900">¡Reserva Confirmada!</h3>
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        Tu orden N° <strong>{createdOrderId}</strong> ha sido agendada exitosamente.
-                                    </p>
-                                </div>
+                                <h3 className="text-base font-bold text-slate-900">¡Reserva Registrada!</h3>
+                                <p className="text-xs text-slate-500">
+                                    Tu solicitud ha sido agendada con éxito. Código de Orden: <strong className="text-slate-800">#{createdOrderId}</strong>
+                                </p>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setShowBookingModal(false);
-                                        setBookingSuccess(false);
-                                        navigate('/');
-                                    }}
-                                    className="w-full bg-slate-900 text-white font-semibold py-2 rounded-lg text-xs cursor-pointer"
+                                    onClick={() => navigate('/ordenes')}
+                                    className="w-full bg-slate-900 text-white font-semibold py-2.5 rounded-xl text-xs cursor-pointer"
                                 >
-                                    Volver al Inicio
+                                    Ver mis Órdenes
                                 </button>
                             </div>
                         )}

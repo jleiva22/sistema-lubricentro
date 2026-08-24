@@ -36,6 +36,7 @@ export default function App() {
             <Route path="/ordenes" element={<OrdersPage />} />
             <Route path="/ordenes/nueva" element={<NuevaOrdenPage />} />
             <Route path="/boletas/preview" element={<BoletaPreviewPage />} />
+            <Route path="/boletas" element={<BoletasPage />} />
             <Route path="/vehiculos" element={<VehiculosPage />} />
             <Route path="/vehiculos/nuevo" element={<NuevoVehiculoPage />} />
             <Route path="/catalogo" element={<CatalogPage />} />
@@ -44,7 +45,6 @@ export default function App() {
           {/* Rutas Exclusivas Administrador & Mecánico */}
           <Route element={<ProtectedRoute roles={['administrador', 'mecanico']}><DashboardLayout /></ProtectedRoute>}>
             <Route path="/clientes" element={<ClientesPage />} />
-            <Route path="/boletas" element={<BoletasPage />} />
           </Route>
 
           {/* Rutas Exclusivas Solo Administrador */}
