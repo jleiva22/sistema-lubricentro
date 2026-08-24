@@ -136,20 +136,25 @@ export default function CatalogPage() {
 
   const fetchCatalogo = useCallback(async () => {
     try {
-      const { data } = await catalogoAPI.getAll();
-      if (Array.isArray(data)) {
-        setCatalogo(data);
-      }
+      const response = await catalogoAPI.getAll();
+      
+      // Extrae el arreglo sin importar si Axios/Backend devuelve un arreglo directo,
+      // un objeto Axios ({ data: [...] }) o un wrapper ({ data: { data: [...] } })
+      const lista = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.data?.data)
+            ? response.data.data
+            : [];
+
+      setCatalogo(lista);
     } catch (err) {
       console.error('Error cargando catálogo:', err);
     } finally {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchCatalogo();
-  }, [fetchCatalogo]);
 
   // Categorías y marcas únicas
   const categorias = useMemo(() => {
@@ -162,14 +167,18 @@ export default function CatalogPage() {
     return [...set].sort();
   }, [catalogo]);
 
-  // Filtrado
-  const filtered = useMemo(() => {
+ const filtered = useMemo(() => {
     return catalogo.filter((servicio) => {
+      const nombre = servicio.nombre || '';
+      const descripcion = servicio.descripcion || '';
+      
       const matchSearch = !searchTerm ||
-        servicio.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (servicio.descripcion || '').toLowerCase().includes(searchTerm.toLowerCase());
+        nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        descripcion.toLowerCase().includes(searchTerm.toLowerCase());
+        
       const matchCategoria = !filtroCategoria || (servicio.categoria || 'Servicio') === filtroCategoria;
       const matchMarca = !filtroMarca || servicio.marca === filtroMarca;
+      
       return matchSearch && matchCategoria && matchMarca;
     });
   }, [catalogo, searchTerm, filtroCategoria, filtroMarca]);

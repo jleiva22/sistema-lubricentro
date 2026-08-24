@@ -79,12 +79,12 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`no-print fixed top-0 left-0 z-40 h-screen w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0 ${
+        className={`no-print fixed top-0 left-0 z-40 h-dvh w-64 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand */}
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-md shadow-brand-600/25 text-white">
               <Droplet size={22} />
@@ -97,7 +97,7 @@ export default function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        <nav className="flex-1 min-h-0 p-4 space-y-1 overflow-y-auto">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -112,7 +112,7 @@ export default function Sidebar() {
         </nav>
 
         {/* User & Logout */}
-        <div className="p-4 border-t border-slate-200">
+        <div className="p-4 border-t border-slate-200 shrink-0">
           <div className="mb-3 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <p className="text-sm font-bold text-slate-900 truncate">
               {user.nombre} {user.apellido || ''}
