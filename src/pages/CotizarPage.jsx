@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { ordenesAPI, vehiculosAPI, catalogoAPI } from '../services/api';
-import { Clock, Calendar, Check, X, ArrowLeft, Car, User, Loader2, Droplet } from 'lucide-react';
+import { Clock, Calendar, Check, X, ArrowLeft, Car, User, Loader2, Droplet, Tag } from 'lucide-react';
 
 export default function CotizarPage() {
     const { user, isAuthenticated } = useAuth();
@@ -15,7 +15,6 @@ export default function CotizarPage() {
 
     // Estado de Selecciones
     const [selectedServiceId, setSelectedServiceId] = useState(null);
-    const [selectedBrand, setSelectedBrand] = useState('');
     const [selectedExtraIds, setSelectedExtraIds] = useState([]);
 
     const [fechaReserva, setFechaReserva] = useState(new Date().toISOString().slice(0, 10));
@@ -42,7 +41,7 @@ export default function CotizarPage() {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [createdOrderId, setCreatedOrderId] = useState(null);
 
-    // Cargar Catálogo (Intenta primero /catalogos/public, si falla usa /catalogos)
+    // Cargar Catálogo desde backend
     useEffect(() => {
         let isMounted = true;
         setLoadingCatalogo(true);
@@ -55,11 +54,9 @@ export default function CotizarPage() {
             .then(res => {
                 if (!isMounted) return;
 
-                // Soporte para distintas envolturas JSON de backend
                 const rawData = res.data?.data || res.data?.catalogos || res.data?.servicios || res.data || [];
                 const list = Array.isArray(rawData) ? rawData : [];
 
-                // Normalizar nombres de columnas de MySQL
                 const normalizedList = list.map(item => ({
                     id: item.id || item.id_catalogo || item.id_servicio,
                     nombre: item.nombre || item.nombre_servicio || item.titulo || 'Servicio sin nombre',
@@ -72,7 +69,6 @@ export default function CotizarPage() {
 
                 setCatalogo(normalizedList);
 
-                // Seleccionar servicio por defecto
                 if (normalizedList.length > 0) {
                     const defaultService = normalizedList.find(s =>
                         s.nombre.toLowerCase().includes('aceite') ||
@@ -81,7 +77,6 @@ export default function CotizarPage() {
                     ) || normalizedList[0];
 
                     setSelectedServiceId(defaultService.id);
-                    if (defaultService.marca) setSelectedBrand(defaultService.marca);
                 }
             })
             .catch(err => {
@@ -95,7 +90,7 @@ export default function CotizarPage() {
         return () => { isMounted = false; };
     }, []);
 
-    // Cargar vehículos del usuario si está autenticado
+    // Cargar vehículos del usuario autenticado
     useEffect(() => {
         if (isAuthenticated) {
             vehiculosAPI?.getAll?.()
@@ -126,7 +121,7 @@ export default function CotizarPage() {
         }
     }, [user]);
 
-    // Clasificar servicios principales y secundarios dinámicamente
+    // Filtrar servicios
     const serviciosAceite = useMemo(() => {
         const list = catalogo.filter(s =>
             s.nombre.toLowerCase().includes('aceite') ||
@@ -140,12 +135,7 @@ export default function CotizarPage() {
         return catalogo.filter(s => !serviciosAceite.some(a => a.id === s.id));
     }, [catalogo, serviciosAceite]);
 
-    const marcasDisponibles = useMemo(() => {
-        const brands = catalogo.map(s => s.marca).filter(Boolean);
-        return [...new Set(brands)];
-    }, [catalogo]);
-
-    // Totales
+    // Servicio actual seleccionado
     const currentServiceObj = catalogo.find(s => s.id === selectedServiceId) || serviciosAceite[0] || {};
     const basePrice = currentServiceObj.precio || 0;
     const baseTime = currentServiceObj.tiempo || 30;
@@ -201,14 +191,14 @@ export default function CotizarPage() {
             ];
 
             const fechaProgramada = `${fechaReserva}T${horaReserva}:00`;
-            const marcaTexto = selectedBrand ? ` (${selectedBrand})` : '';
-            const detalleAceite = `Reserva Online - Servicio: ${currentServiceObj.nombre || 'Mantenimiento'}${marcaTexto}`;
+            const marcaTexto = currentServiceObj.marca ? ` (${currentServiceObj.marca})` : '';
+            const detalleServicio = `Reserva Online - Servicio: ${currentServiceObj.nombre || 'Mantenimiento'}${marcaTexto}`;
 
             const payload = isAuthenticated
                 ? {
                     fecha_programada: fechaProgramada,
                     servicio_ids: selectedServiceIds,
-                    observaciones_fallas: detalleAceite,
+                    observaciones_fallas: detalleServicio,
                     cliente_id: user?.cliente_id || user?.id,
                     vehiculo_id: selectedVehiculoId !== 'nuevo' ? selectedVehiculoId : null,
                     ...(selectedVehiculoId === 'nuevo' && {
@@ -228,7 +218,7 @@ export default function CotizarPage() {
                     modelo: guestData.modelo || 'Estándar',
                     fecha_programada: `${fechaReserva} ${horaReserva}:00`,
                     servicio_ids: selectedServiceIds,
-                    observaciones_fallas: detalleAceite,
+                    observaciones_fallas: detalleServicio,
                 };
 
             const apiCall = isAuthenticated
@@ -262,7 +252,6 @@ export default function CotizarPage() {
             <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
                 <div className="bg-white p-6 rounded-xl border border-rose-200 text-center max-w-md shadow-xs">
                     <p className="text-sm text-rose-600 font-semibold mb-2">{errorCatalogo}</p>
-                    <p className="text-xs text-slate-500 mb-4">No se pudo obtener la lista de servicios del backend.</p>
                     <button
                         onClick={() => window.location.reload()}
                         className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold cursor-pointer"
@@ -285,17 +274,17 @@ export default function CotizarPage() {
             <main className="max-w-5xl mx-auto px-4 pt-4">
                 <div className="mb-8">
                     <h1 className="text-xl font-bold text-slate-900 tracking-tight">Cotizar Servicio</h1>
-                    <p className="text-slate-500 text-xs mt-0.5">Selecciona los servicios del catálogo para agendar tu atención.</p>
+                    <p className="text-slate-500 text-xs mt-0.5">Selecciona el servicio que deseas agendar.</p>
                 </div>
 
                 <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
                     <div className="space-y-8">
 
-                        {/* 1. Servicio Principal */}
+                        {/* 1. Selección de Servicio Principal */}
                         <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">1. Servicio Principal</h2>
+                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">1. Servicios Disponibles</h2>
                             {serviciosAceite.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">No hay servicios disponibles en el catálogo.</p>
+                                <p className="text-xs text-slate-400 italic">No hay servicios registrados.</p>
                             ) : (
                                 <div className="grid sm:grid-cols-3 gap-3">
                                     {serviciosAceite.map((item) => {
@@ -305,10 +294,7 @@ export default function CotizarPage() {
                                             <button
                                                 key={item.id}
                                                 type="button"
-                                                onClick={() => {
-                                                    setSelectedServiceId(item.id);
-                                                    if (item.marca) setSelectedBrand(item.marca);
-                                                }}
+                                                onClick={() => setSelectedServiceId(item.id)}
                                                 className={`p-4 rounded-xl text-left border transition-all cursor-pointer ${isSelected
                                                     ? 'bg-white border-slate-900 ring-1 ring-slate-900 shadow-xs'
                                                     : 'bg-white border-slate-200/80 hover:border-slate-300'
@@ -320,9 +306,17 @@ export default function CotizarPage() {
                                                 </div>
                                                 <p className="text-[11px] text-slate-500 mb-2 line-clamp-2">{item.descripcion || 'Servicio registrado en catálogo'}</p>
 
-                                                <div className="flex items-center gap-1.5 text-[10px] text-blue-700 mb-3">
-                                                    <Droplet size={11} />
-                                                    <span>Categoría: <strong>{item.categoria}</strong></span>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <div className="flex items-center gap-1 text-[10px] text-blue-700">
+                                                        <Droplet size={11} />
+                                                        <span>{item.categoria}</span>
+                                                    </div>
+                                                    {item.marca && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">
+                                                            <Tag size={10} />
+                                                            <span>{item.marca}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <span className="text-sm font-bold text-slate-900">${item.precio.toLocaleString('es-CL')}</span>
@@ -333,32 +327,10 @@ export default function CotizarPage() {
                             )}
                         </section>
 
-                        {/* 2. Marcas desde DB */}
-                        {marcasDisponibles.length > 0 && (
-                            <section className="space-y-3">
-                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Marca Preferida</h2>
-                                <div className="flex flex-wrap gap-2">
-                                    {marcasDisponibles.map((brand) => (
-                                        <button
-                                            key={brand}
-                                            type="button"
-                                            onClick={() => setSelectedBrand(brand)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${selectedBrand === brand
-                                                ? 'bg-slate-900 text-white border-slate-900'
-                                                : 'bg-white border-slate-200/80 text-slate-600 hover:border-slate-300'
-                                                }`}
-                                        >
-                                            {brand}
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-                        )}
-
-                        {/* 3. Adicionales desde DB */}
+                        {/* 2. Adicionales */}
                         {serviciosAdicionales.length > 0 && (
                             <section className="space-y-3">
-                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Servicios Adicionales</h2>
+                                <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">2. Servicios Adicionales</h2>
                                 <div className="bg-white rounded-xl border border-slate-200/80 divide-y divide-slate-100 overflow-hidden">
                                     {serviciosAdicionales.map((extra) => {
                                         const checked = selectedExtraIds.includes(extra.id);
@@ -389,9 +361,9 @@ export default function CotizarPage() {
                             </section>
                         )}
 
-                        {/* 4. Agenda */}
+                        {/* 3. Agenda */}
                         <section className="space-y-3">
-                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">4. Agenda tu Atención</h2>
+                            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">3. Agenda tu Atención</h2>
                             <div className="grid sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-[11px] font-medium text-slate-500 mb-1">Fecha</label>
@@ -432,7 +404,11 @@ export default function CotizarPage() {
                                 <span>{currentServiceObj.nombre || 'Seleccione un servicio'}</span>
                                 <span className="font-semibold text-slate-900">${basePrice.toLocaleString('es-CL')}</span>
                             </div>
-                            {selectedBrand && <p className="text-[11px] text-slate-400 -mt-1">Marca: {selectedBrand}</p>}
+                            {currentServiceObj.marca && (
+                                <p className="text-[11px] text-slate-400 -mt-1 flex items-center gap-1">
+                                    <Tag size={10} /> Marca: <strong className="text-slate-600">{currentServiceObj.marca}</strong>
+                                </p>
+                            )}
 
                             {extrasSeleccionados.map((extra) => (
                                 <div key={extra.id} className="flex justify-between text-slate-600 pt-1">
